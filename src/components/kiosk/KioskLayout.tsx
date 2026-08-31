@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 
 // ─── KioskHeader ────────────────────────────────────────────────
 interface KioskHeaderProps {
@@ -162,24 +163,34 @@ export function KioskFooter({
 export function MediKioskLogo({
   size = "md",
   className,
+  showText = true,
 }: {
   size?: "sm" | "md" | "lg";
   className?: string;
+  showText?: boolean;
 }) {
-  const textSizes = { sm: "text-xl", md: "text-2xl", lg: "text-4xl" };
-  const iconSizes = { sm: "text-2xl", md: "text-3xl", lg: "text-5xl" };
+  const imgSizes = { sm: 36, md: 48, lg: 72 };
+  const textSizes = { sm: "text-lg", md: "text-xl", lg: "text-3xl" };
 
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <span className={cn("leading-none", iconSizes[size])}>🏥</span>
-      <div>
-        <span className={cn("font-extrabold text-neutral-900 leading-none", textSizes[size])}>
-          Medi
-        </span>
-        <span className={cn("font-extrabold text-brand-600 leading-none", textSizes[size])}>
-          Kiosk
-        </span>
-      </div>
+      <Image
+        src="/logo.jpg"
+        alt="MediKiosk"
+        width={imgSizes[size]}
+        height={imgSizes[size]}
+        className="rounded-full border border-brand-100 shadow-sm"
+      />
+      {showText && (
+        <div className="leading-none">
+          <span className={cn("font-extrabold text-brand-700", textSizes[size])}>
+            Medi
+          </span>
+          <span className={cn("font-extrabold text-secondary-500", textSizes[size])}>
+            Kiosk
+          </span>
+        </div>
+      )}
     </div>
   );
 }

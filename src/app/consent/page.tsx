@@ -1,16 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { KioskHeader, KioskScreen, KioskBody, KioskFooter } from "@/components/kiosk/KioskLayout";
+import {
+  KioskHeader,
+  KioskScreen,
+  KioskBody,
+  KioskFooter,
+} from "@/components/kiosk/KioskLayout";
 import { Button, Card } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/translations";
 
 interface ConsentItem {
   id: string;
   icon: string;
-  title: string;
+  titleKey: "shareHistory" | "shareWithDoctor" | "saveToABHA" | "allowVoiceRecording";
   titleEn: string;
   description: string;
   required: boolean;
@@ -20,39 +26,44 @@ const CONSENT_ITEMS: ConsentItem[] = [
   {
     id: "dataCapture",
     icon: "🎙️",
-    title: "बीमारी का इतिहास बताना",
+    titleKey: "shareHistory",
     titleEn: "Share my medical history for this visit",
-    description: "Your voice/touch responses will be processed by AI to create a clinical summary for your doctor.",
+    description:
+      "Your voice and touch responses will be processed by AI to create a clinical summary for your doctor.",
     required: true,
   },
   {
     id: "doctorShare",
     icon: "👨‍⚕️",
-    title: "डॉक्टर के साथ साझा करना",
+    titleKey: "shareWithDoctor",
     titleEn: "Share summary with my doctor today",
-    description: "The structured history summary will appear on the doctor's screen before consultation.",
+    description:
+      "The structured history summary will appear on the doctor's screen before consultation.",
     required: true,
   },
   {
     id: "abhaLink",
     icon: "🔗",
-    title: "ABHA रिकॉर्ड में सेव करना",
+    titleKey: "saveToABHA",
     titleEn: "Save to my ABHA health record",
-    description: "Your history will be saved to your permanent Ayushman Bharat health account.",
+    description:
+      "Your history will be saved to your permanent Ayushman Bharat health account.",
     required: false,
   },
   {
     id: "audioRecording",
     icon: "🔊",
-    title: "आवाज़ रिकॉर्डिंग",
+    titleKey: "allowVoiceRecording",
     titleEn: "Allow voice recording",
-    description: "Audio is processed locally and deleted after your session. Never stored permanently.",
+    description:
+      "Audio is processed locally and deleted after your session. Never stored permanently.",
     required: false,
   },
 ];
 
 export default function ConsentPage() {
   const router = useRouter();
+  const [lang, setLang] = useState("hi");
   const [checked, setChecked] = useState<Record<string, boolean>>({
     dataCapture: false,
     doctorShare: false,
@@ -60,6 +71,10 @@ export default function ConsentPage() {
     audioRecording: false,
   });
   const [audioPlaying, setAudioPlaying] = useState(false);
+
+  useEffect(() => {
+    setLang(sessionStorage.getItem("mk_lang") ?? "hi");
+  }, []);
 
   const requiredChecked = CONSENT_ITEMS.filter((i) => i.required).every(
     (i) => checked[i.id]
@@ -74,7 +89,6 @@ export default function ConsentPage() {
     router.push("/history");
   }
 
-  // Mock TTS audio guidance
   function handlePlayAudio() {
     setAudioPlaying(true);
     setTimeout(() => setAudioPlaying(false), 4000);
@@ -83,11 +97,11 @@ export default function ConsentPage() {
   return (
     <KioskScreen>
       <KioskHeader
-        title="आपकी सहमति"
-        subtitle="Your Consent — Step 2 of 6"
+        title={t(lang, "yourConsent")}
+        subtitle="Your Consent"
         onBack={() => router.push("/login")}
         progress={20}
-        stepLabel="Step 2 of 6"
+        stepLabel="2 / 6"
         rightSlot={
           <button
             onClick={handlePlayAudio}
@@ -108,23 +122,19 @@ export default function ConsentPage() {
         }
       />
 
-      <KioskBody className="space-y-4">
-        {/* Intro card */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="bg-brand-50 rounded-2xl border border-brand-100 p-4 mb-2">
+      <KioskBody className="space-y-3">
+        {/* Privacy banner */}
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="bg-brand-50 rounded-2xl border border-brand-100 p-4">
             <div className="flex gap-3 items-start">
-              <span className="text-2xl">🔒</span>
+              <span className="text-xl shrink-0">🔒</span>
               <div>
                 <p className="font-semibold text-brand-900 text-sm">
-                  आपकी गोपनीयता हमारी जिम्मेदारी है
+                  {t(lang, "dataProtected")}
                 </p>
                 <p className="text-xs text-brand-700 mt-1">
-                  Your data is protected under{" "}
-                  <strong>DPDP Act 2023</strong> &amp; ABDM consent framework.
-                  Session data is deleted after you leave.
+                  Protected under <strong>DPDP Act 2023</strong> &amp; ABDM
+                  consent framework. Session data deleted after you leave.
                 </p>
               </div>
             </div>
@@ -137,7 +147,7 @@ export default function ConsentPage() {
             key={item.id}
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.08 }}
+            transition={{ delay: i * 0.07 }}
           >
             <Card
               interactive
@@ -149,7 +159,7 @@ export default function ConsentPage() {
               tabIndex={0}
               onKeyDown={(e) => e.key === " " && toggle(item.id)}
             >
-              <div className="flex items-start gap-4">
+              <div className="flex items-start gap-3">
                 {/* Checkbox */}
                 <div
                   className={cn(
@@ -172,24 +182,24 @@ export default function ConsentPage() {
                   )}
                 </div>
 
-                <span className="text-2xl shrink-0">{item.icon}</span>
+                <span className="text-xl shrink-0">{item.icon}</span>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-bold text-neutral-900 text-base leading-tight">
-                      {item.title}
+                      {t(lang, item.titleKey)}
                     </p>
                     {item.required ? (
-                      <span className="text-xs bg-error-50 text-error-600 px-2 py-0.5 rounded-full font-semibold">
-                        ज़रूरी / Required
+                      <span className="text-xs bg-secondary-50 text-secondary-600 px-2 py-0.5 rounded-full font-semibold border border-secondary-200">
+                        {t(lang, "required")}
                       </span>
                     ) : (
                       <span className="text-xs bg-neutral-100 text-neutral-500 px-2 py-0.5 rounded-full">
-                        Optional
+                        {t(lang, "optional")}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-neutral-500 mt-1 leading-relaxed">
+                  <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
                     {item.titleEn}
                   </p>
                   <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
@@ -201,10 +211,8 @@ export default function ConsentPage() {
           </motion.div>
         ))}
 
-        <p className="text-xs text-neutral-400 text-center pt-2">
-          आप किसी भी समय अपनी सहमति वापस ले सकते हैं।
-          <br />
-          You can withdraw consent at any time.
+        <p className="text-xs text-neutral-400 text-center pt-1">
+          {t(lang, "aadhaarNeverStored")} · You can withdraw consent at any time.
         </p>
       </KioskBody>
 
@@ -215,14 +223,12 @@ export default function ConsentPage() {
           fullWidth
           disabled={!requiredChecked}
           onClick={handleProceed}
-          icon={<span>→</span>}
-          iconPosition="right"
         >
-          ✅ &nbsp;सहमत हूं — आगे बढ़ें &nbsp;/ &nbsp;I Agree — Continue
+          ✅ &nbsp;{t(lang, "agreeAndContinue")}
         </Button>
         {!requiredChecked && (
-          <p className="text-center text-sm text-neutral-400 mt-2">
-            ऊपर ज़रूरी विकल्प चुनें / Please check the required items above
+          <p className="text-center text-xs text-neutral-400 mt-2">
+            {t(lang, "required")} items above must be checked to continue
           </p>
         )}
       </KioskFooter>

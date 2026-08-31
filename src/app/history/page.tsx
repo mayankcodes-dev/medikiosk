@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,6 +13,7 @@ import {
 import { Button, Card } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { COMMON_SYMPTOMS, HISTORY_SECTIONS } from "@/lib/constants";
+import { t } from "@/lib/translations";
 
 // ── Mock dialog flow for Phase 0 ─────────────────────────────────
 const MOCK_QUESTIONS = [
@@ -105,6 +106,7 @@ type InputMode = "voice" | "touch";
 
 export default function HistoryPage() {
   const router = useRouter();
+  const [lang, setLang] = useState("hi");
   const [qIndex, setQIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [selected, setSelected] = useState<string[]>([]);
@@ -112,6 +114,10 @@ export default function HistoryPage() {
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [voiceAnswer, setVoiceAnswer] = useState("");
+
+  useEffect(() => {
+    setLang(sessionStorage.getItem("mk_lang") ?? "hi");
+  }, []);
 
   const currentQ = MOCK_QUESTIONS[qIndex];
   const isLast = qIndex === MOCK_QUESTIONS.length - 1;

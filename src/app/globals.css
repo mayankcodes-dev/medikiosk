@@ -2,7 +2,7 @@
 
 /* ─── Design Tokens ──────────────────────────────────────────── */
 @theme {
-  /* Colors */
+  /* Primary — Blue */
   --color-brand-50:  #eff6ff;
   --color-brand-100: #dbeafe;
   --color-brand-200: #bfdbfe;
@@ -10,6 +10,15 @@
   --color-brand-600: #2563eb;
   --color-brand-700: #1d4ed8;
   --color-brand-900: #1e3a8a;
+
+  /* Secondary — Orange */
+  --color-secondary-50:  #fff7ed;
+  --color-secondary-100: #ffedd5;
+  --color-secondary-200: #fed7aa;
+  --color-secondary-400: #fb923c;
+  --color-secondary-500: #f97316;
+  --color-secondary-600: #ea580c;
+  --color-secondary-700: #c2410c;
 
   --color-success-50:  #f0fdf4;
   --color-success-500: #22c55e;

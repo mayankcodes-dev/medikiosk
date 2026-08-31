@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { t } from "@/lib/translations";
 import { motion } from "framer-motion";
 import {
   KioskHeader,

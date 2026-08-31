@@ -1,39 +1,60 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { KioskHeader, KioskScreen, KioskBody, KioskFooter } from "@/components/kiosk/KioskLayout";
+import Image from "next/image";
+import {
+  KioskHeader,
+  KioskScreen,
+  KioskBody,
+  KioskFooter,
+} from "@/components/kiosk/KioskLayout";
 import { Button, Card, Divider } from "@/components/ui/primitives";
 import { formatABHA } from "@/lib/utils";
+import { t } from "@/lib/translations";
 
-type LoginMethod = null | "abha" | "aadhaar" | "new" | "otp";
+type LoginMethod = null | "abha" | "aadhaar" | "otp";
+type OtpContext = "abha" | "aadhaar";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [lang, setLang] = useState("hi");
   const [method, setMethod] = useState<LoginMethod>(null);
+  const [otpContext, setOtpContext] = useState<OtpContext>("abha");
   const [abhaInput, setAbhaInput] = useState("");
+  const [aadhaarInput, setAadhaarInput] = useState("");
   const [otpInput, setOtpInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [txnId, setTxnId] = useState<string | null>(null);
 
-  // ── Mock auth flow for Phase 0 ───────────────────────────────
-  async function handleABHASubmit() {
+  useEffect(() => {
+    setLang(sessionStorage.getItem("mk_lang") ?? "hi");
+  }, []);
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function maskAadhaar(val: string) {
+    const digits = val.replace(/\D/g, "").slice(0, 12);
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 8) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+    return `${digits.slice(0, 4)} ${digits.slice(4, 8)} ${digits.slice(8)}`;
+  }
+
+  async function handleSendOTP(context: OtpContext) {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200)); // simulate API
-    setTxnId("mock-txn-" + Date.now());
+    setOtpContext(context);
+    await new Promise((r) => setTimeout(r, 1000));
     setMethod("otp");
     setLoading(false);
   }
 
   async function handleOTPVerify() {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    // Store mock patient in sessionStorage
+    await new Promise((r) => setTimeout(r, 900));
     sessionStorage.setItem(
       "mk_patient",
       JSON.stringify({
-        abhaNumber: abhaInput.replace(/-/g, ""),
+        abhaNumber: otpContext === "abha" ? abhaInput.replace(/-/g, "") : undefined,
+        aadhaarLinked: otpContext === "aadhaar",
         name: "Ramesh Kumar",
         gender: "male",
         yearOfBirth: 1978,
@@ -43,76 +64,52 @@ export default function LoginPage() {
     router.push("/consent");
   }
 
-  function handleGuestContinue() {
+  function handleGuest() {
     sessionStorage.setItem("mk_patient", JSON.stringify({ name: "Guest" }));
     router.push("/consent");
   }
 
-  // ── Login option cards ────────────────────────────────────────
-  const loginOptions = [
-    {
-      id: "abha",
-      icon: "🪪",
-      title: "ABHA ID से लॉगिन",
-      titleEn: "Login with ABHA ID",
-      description: "14-digit health account number",
-    },
-    {
-      id: "qr",
-      icon: "📷",
-      title: "QR कोड स्कैन करें",
-      titleEn: "Scan QR Code",
-      description: "Use ABHA app to scan",
-    },
-    {
-      id: "new",
-      icon: "✨",
-      title: "नया ABHA बनाएं",
-      titleEn: "Create New ABHA",
-      description: "Register with Aadhaar",
-    },
-    {
-      id: "guest",
-      icon: "👤",
-      title: "बिना ABHA के जारी रखें",
-      titleEn: "Continue without ABHA",
-      description: "Record won't be saved to health account",
-    },
-  ] as const;
-
-  // ── Render OTP screen ─────────────────────────────────────────
+  // ── OTP Screen ─────────────────────────────────────────────────
   if (method === "otp") {
     return (
       <KioskScreen>
         <KioskHeader
-          title="OTP दर्ज करें"
-          subtitle="Enter the OTP sent to your registered mobile"
-          onBack={() => { setMethod(null); setTxnId(null); }}
+          title={t(lang, "enterOTP")}
+          subtitle="Enter OTP"
+          onBack={() => { setMethod(otpContext as LoginMethod); setOtpInput(""); }}
           progress={15}
-          stepLabel="Step 1 of 6"
+          stepLabel="1 / 6"
         />
-        <KioskBody className="flex flex-col gap-6 justify-center items-center py-12">
-          <div className="text-center space-y-2">
+        <KioskBody className="flex flex-col items-center gap-6 justify-center py-10">
+          <div className="text-center space-y-1">
             <p className="text-5xl">📱</p>
             <h2 className="text-xl font-bold text-neutral-900">
-              OTP आपके मोबाइल पर भेजा गया है
+              {t(lang, "otpSentMessage")}
             </h2>
-            <p className="text-neutral-500 text-sm">
-              OTP sent to your ABHA-registered mobile
-            </p>
+            <p className="text-sm text-neutral-400">OTP sent to your registered mobile</p>
           </div>
+
+          {/* Identifier hint */}
+          <div className="bg-neutral-50 rounded-xl px-5 py-2.5 text-sm text-neutral-500 text-center">
+            {otpContext === "abha"
+              ? `ABHA: ${formatABHA(abhaInput)}`
+              : `Aadhaar: XXXX XXXX ${aadhaarInput.replace(/\D/g, "").slice(-4)}`}
+          </div>
+
+          {/* OTP Input */}
           <input
             type="tel"
             inputMode="numeric"
             maxLength={6}
-            placeholder="6-digit OTP"
+            placeholder="— — — — — —"
             value={otpInput}
             onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            className="w-full max-w-xs text-center text-3xl tracking-[0.5em] font-bold
-                       border-2 border-neutral-300 rounded-2xl py-4 focus:border-brand-500
-                       focus:outline-none transition-colors"
+            className="w-48 text-center text-3xl tracking-[0.4em] font-bold
+                       border-2 border-neutral-300 rounded-2xl py-4
+                       focus:border-brand-500 focus:outline-none transition-colors"
             autoFocus
           />
+
           <Button
             variant="primary"
             size="xl"
@@ -122,33 +119,37 @@ export default function LoginPage() {
             disabled={otpInput.length < 4}
             onClick={handleOTPVerify}
           >
-            ✅ &nbsp;Verify &amp; Continue
+            {t(lang, "verifyAndContinue")}
           </Button>
+
           <button className="text-brand-600 text-sm font-semibold hover:underline">
-            🔁 Resend OTP / OTP दोबारा भेजें
+            🔁 {t(lang, "resendOTP")}
           </button>
         </KioskBody>
       </KioskScreen>
     );
   }
 
-  // ── Render ABHA number input ───────────────────────────────────
+  // ── ABHA Number Input ──────────────────────────────────────────
   if (method === "abha") {
     return (
       <KioskScreen>
         <KioskHeader
-          title="ABHA ID दर्ज करें"
-          subtitle="Enter your 14-digit ABHA number"
+          title={t(lang, "enterABHANumber")}
+          subtitle="Enter ABHA Number"
           onBack={() => setMethod(null)}
           progress={10}
-          stepLabel="Step 1 of 6"
+          stepLabel="1 / 6"
         />
-        <KioskBody className="flex flex-col gap-6 justify-center items-center py-12">
+        <KioskBody className="flex flex-col items-center gap-6 justify-center py-10">
           <p className="text-6xl text-center">🪪</p>
-          <div className="w-full max-w-sm space-y-4">
-            <label className="block text-neutral-700 font-semibold text-center mb-1">
-              ABHA Number (91-XXXX-XXXX-XXXX)
-            </label>
+          <div className="w-full max-w-sm space-y-3">
+            <p className="text-sm text-neutral-500 text-center">
+              {t(lang, "loginWithABHADesc")}
+            </p>
+            <p className="text-xs text-neutral-400 text-center">
+              Format: 91-XXXX-XXXX-XXXX
+            </p>
             <input
               type="tel"
               inputMode="numeric"
@@ -157,14 +158,11 @@ export default function LoginPage() {
               onChange={(e) =>
                 setAbhaInput(e.target.value.replace(/\D/g, "").slice(0, 14))
               }
-              className="w-full text-center text-2xl tracking-widest font-bold
+              className="w-full text-center text-xl tracking-widest font-bold
                          border-2 border-neutral-300 rounded-2xl py-4 px-4
                          focus:border-brand-500 focus:outline-none transition-colors"
               autoFocus
             />
-            <p className="text-xs text-neutral-400 text-center">
-              आपका ABHA नंबर आपके ABHA कार्ड पर है
-            </p>
           </div>
           <Button
             variant="primary"
@@ -173,82 +171,196 @@ export default function LoginPage() {
             className="max-w-sm"
             loading={loading}
             disabled={abhaInput.replace(/\D/g, "").length < 14}
-            onClick={handleABHASubmit}
+            onClick={() => handleSendOTP("abha")}
           >
-            📲 &nbsp;Send OTP
+            📲 &nbsp;{t(lang, "sendOTP")}
           </Button>
         </KioskBody>
       </KioskScreen>
     );
   }
 
-  // ── Default: Method selection screen ─────────────────────────
+  // ── Aadhaar Number Input ───────────────────────────────────────
+  if (method === "aadhaar") {
+    return (
+      <KioskScreen>
+        <KioskHeader
+          title={t(lang, "enterAadhaarNumber")}
+          subtitle="Enter Aadhaar Number"
+          onBack={() => setMethod(null)}
+          progress={10}
+          stepLabel="1 / 6"
+        />
+        <KioskBody className="flex flex-col items-center gap-6 justify-center py-10">
+          <p className="text-6xl text-center">🪪</p>
+          <div className="w-full max-w-sm space-y-3">
+            <p className="text-sm text-neutral-500 text-center">
+              {t(lang, "loginWithAadhaarDesc")}
+            </p>
+            <input
+              type="tel"
+              inputMode="numeric"
+              placeholder="XXXX XXXX XXXX"
+              value={maskAadhaar(aadhaarInput)}
+              onChange={(e) =>
+                setAadhaarInput(e.target.value.replace(/\D/g, "").slice(0, 12))
+              }
+              className="w-full text-center text-xl tracking-[0.3em] font-bold
+                         border-2 border-neutral-300 rounded-2xl py-4 px-4
+                         focus:border-secondary-500 focus:outline-none transition-colors"
+              autoFocus
+            />
+            <p className="text-xs text-neutral-400 text-center">
+              🔒 {t(lang, "aadhaarNeverStored")}
+            </p>
+          </div>
+          <Button
+            variant="primary"
+            size="xl"
+            fullWidth
+            className="max-w-sm"
+            loading={loading}
+            disabled={aadhaarInput.replace(/\D/g, "").length < 12}
+            onClick={() => handleSendOTP("aadhaar")}
+          >
+            📲 &nbsp;{t(lang, "sendOTP")}
+          </Button>
+        </KioskBody>
+      </KioskScreen>
+    );
+  }
+
+  // ── Default: Method Selection ──────────────────────────────────
   return (
     <KioskScreen>
       <KioskHeader
-        title="अपनी पहचान बताएं"
+        title={t(lang, "identifyYourself")}
         subtitle="Identify Yourself"
         onBack={() => router.push("/")}
         progress={5}
-        stepLabel="Step 1 of 6"
+        stepLabel="1 / 6"
       />
-      <KioskBody>
-        <div className="space-y-3 pt-2">
-          {loginOptions.map((opt, i) => (
-            <motion.div
-              key={opt.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.07 }}
+
+      <KioskBody className="space-y-4">
+        {/* Logo top */}
+        <div className="flex justify-center mb-2">
+          <Image src="/logo.jpg" alt="MediKiosk" width={52} height={52}
+            className="rounded-full border border-brand-100" />
+        </div>
+
+        {/* ── TWO PRIMARY options (big cards) ── */}
+        <div className="grid grid-cols-1 gap-3">
+          {/* ABHA Login */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+          >
+            <button
+              onClick={() => setMethod("abha")}
+              className="w-full flex items-center gap-4 p-5 rounded-2xl border-2
+                         border-brand-200 bg-brand-50 hover:bg-brand-100 hover:border-brand-400
+                         active:scale-[0.98] transition-all duration-150 text-left"
             >
-              <Card
-                interactive
-                className="p-5"
-                onClick={() => {
-                  if (opt.id === "abha") setMethod("abha");
-                  else if (opt.id === "guest") handleGuestContinue();
-                  /* QR + new ABHA: Phase 1 integration */
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && (
-                  opt.id === "abha" ? setMethod("abha")
-                  : opt.id === "guest" ? handleGuestContinue()
-                  : undefined
-                )}
-              >
-                <div className="flex items-center gap-4">
-                  <span className="text-4xl">{opt.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-neutral-900 text-lg leading-tight">
-                      {opt.title}
-                    </p>
-                    <p className="text-sm text-neutral-500 leading-tight mt-0.5">
-                      {opt.titleEn}
-                    </p>
-                    <p className="text-xs text-neutral-400 mt-1">
-                      {opt.description}
-                    </p>
-                  </div>
-                  <svg
-                    className="text-neutral-400 shrink-0"
-                    width="20" height="20" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" strokeWidth="2.5"
-                    strokeLinecap="round" strokeLinejoin="round"
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
+              <div className="h-14 w-14 rounded-2xl bg-brand-600 flex items-center
+                              justify-center text-white text-2xl shrink-0 shadow-sm">
+                🪪
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-brand-900 text-lg leading-tight">
+                  {t(lang, "loginWithABHA")}
+                </p>
+                <p className="text-sm text-brand-700 font-medium mt-0.5">Login with ABHA ID</p>
+                <p className="text-xs text-neutral-400 mt-1">{t(lang, "loginWithABHADesc")}</p>
+              </div>
+              <svg className="text-brand-400 shrink-0" width="20" height="20"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          </motion.div>
+
+          {/* Aadhaar Login */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <button
+              onClick={() => setMethod("aadhaar")}
+              className="w-full flex items-center gap-4 p-5 rounded-2xl border-2
+                         border-secondary-200 bg-secondary-50 hover:bg-secondary-100
+                         hover:border-secondary-400 active:scale-[0.98] transition-all
+                         duration-150 text-left"
+            >
+              <div className="h-14 w-14 rounded-2xl bg-secondary-500 flex items-center
+                              justify-center text-white text-2xl shrink-0 shadow-sm">
+                🪪
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-secondary-900 text-lg leading-tight">
+                  {t(lang, "loginWithAadhaar")}
+                </p>
+                <p className="text-sm text-secondary-700 font-medium mt-0.5">Login with Aadhaar</p>
+                <p className="text-xs text-neutral-400 mt-1">{t(lang, "loginWithAadhaarDesc")}</p>
+              </div>
+              <svg className="text-secondary-400 shrink-0" width="20" height="20"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          </motion.div>
         </div>
 
         <Divider />
 
-        <p className="text-xs text-neutral-400 text-center px-4">
-          🔒 आपका Aadhaar नंबर कभी स्टोर नहीं किया जाता।
-          Your Aadhaar is never stored — we only use ABHA.
+        {/* ── TWO SECONDARY options (smaller) ── */}
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Create ABHA — external link */}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            transition={{ delay: 0.18 }}
+          >
+            <a
+              href="https://abha.abdm.gov.in/abha/v3/register"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-neutral-200
+                         bg-white hover:bg-neutral-50 hover:border-neutral-300 active:scale-95
+                         transition-all text-center w-full"
+            >
+              <span className="text-xl">✨</span>
+              <p className="font-semibold text-neutral-700 text-sm leading-tight">
+                {t(lang, "createABHA")}
+              </p>
+              <p className="text-xs text-neutral-400">Create New ABHA</p>
+            </a>
+          </motion.div>
+
+          {/* Continue without ABHA */}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            transition={{ delay: 0.22 }}
+          >
+            <button
+              onClick={handleGuest}
+              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-neutral-200
+                         bg-white hover:bg-neutral-50 hover:border-neutral-300 active:scale-95
+                         transition-all text-center w-full"
+            >
+              <span className="text-xl">👤</span>
+              <p className="font-semibold text-neutral-700 text-sm leading-tight">
+                {t(lang, "continueWithoutABHA")}
+              </p>
+              <p className="text-xs text-neutral-400">Skip ABHA login</p>
+            </button>
+          </motion.div>
+        </div>
+
+        {/* Privacy note */}
+        <p className="text-xs text-neutral-400 text-center pt-1">
+          🔒 {t(lang, "aadhaarNeverStored")}
+          <br />Your Aadhaar is never stored — we use ABHA only.
         </p>
       </KioskBody>
     </KioskScreen>
