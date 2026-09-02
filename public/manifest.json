@@ -1,14 +1,25 @@
 {
-  "name": "MediKiosk",
+  "name": "MediKiosk — AI Health Kiosk",
   "short_name": "MediKiosk",
-  "description": "AI-Powered Multilingual Clinical History Platform — SIH 2026",
+  "description": "AI-powered multilingual clinical history kiosk for Indian hospitals",
   "start_url": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#ffffff",
   "theme_color": "#2563eb",
   "orientation": "portrait",
+  "categories": ["medical", "health"],
+  "lang": "hi",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/logo.jpg", "sizes": "192x192", "type": "image/jpeg", "purpose": "any maskable" },
+    { "src": "/logo.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any maskable" }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Doctor Dashboard",
+      "short_name": "Doctor",
+      "url": "/doctor",
+      "icons": [{ "src": "/logo.jpg", "sizes": "96x96" }]
+    }
   ]
 }

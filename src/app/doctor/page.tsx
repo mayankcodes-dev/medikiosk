@@ -46,7 +46,7 @@ export default function DoctorDashboard() {
   const [pollingOk, setPollingOk] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ── Fetch queue ───────────────────────────────────────────────
+  // ── SSE real-time connection ──────────────────────────────────
   const fetchQueue = useCallback(async () => {
     try {
       const res = await fetch("/api/queue/list", { cache: "no-store" });
@@ -59,12 +59,40 @@ export default function DoctorDashboard() {
     }
   }, []);
 
-  // ── Start/stop polling ────────────────────────────────────────
   useEffect(() => {
     if (!authed) return;
+
+    // Initial fetch
     fetchQueue();
-    intervalRef.current = setInterval(fetchQueue, 3000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+
+    // SSE for real-time updates
+    const es = new EventSource("/api/queue/list");
+    es.onmessage = (e) => {
+      try {
+        const json: QueueData = JSON.parse(e.data);
+        setData(json);
+        setLastUpdate(new Date());
+        setPollingOk(true);
+      } catch { /* ignore malformed */ }
+    };
+    es.onerror = () => {
+      setPollingOk(false);
+      // SSE reconnects automatically — fallback poll
+      if (intervalRef.current) return;
+      intervalRef.current = setInterval(fetchQueue, 4000);
+    };
+    es.onopen = () => {
+      setPollingOk(true);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+
+    return () => {
+      es.close();
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [authed, fetchQueue]);
 
   // ── Update patient status ─────────────────────────────────────
