@@ -26,6 +26,9 @@ export default function LoginPage() {
   const [aadhaarInput, setAadhaarInput] = useState("");
   const [otpInput, setOtpInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [txnId, setTxnId] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [devOtp, setDevOtp] = useState(""); // shown in dev mode only
 
   useEffect(() => {
     setLang(sessionStorage.getItem("mk_lang") ?? "hi");
@@ -42,32 +45,72 @@ export default function LoginPage() {
   async function handleSendOTP(context: OtpContext) {
     setLoading(true);
     setOtpContext(context);
-    await new Promise((r) => setTimeout(r, 1000));
-    setMethod("otp");
+    setOtpError("");
+    try {
+      const res = await fetch("/api/abdm/mock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_otp",
+          aadhaarNumber: context === "aadhaar"
+            ? aadhaarInput.replace(/\s/g, "")
+            : abhaInput.replace(/-/g, ""),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTxnId(data.txnId);
+        if (data.mockOtp) setDevOtp(data.mockOtp); // dev hint only
+        setMethod("otp");
+      } else {
+        setOtpError(data.error ?? "Failed to send OTP");
+      }
+    } catch {
+      setOtpError("Network error. Please try again.");
+    }
     setLoading(false);
   }
 
   async function handleOTPVerify() {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
-    sessionStorage.setItem(
-      "mk_patient",
-      JSON.stringify({
-        abhaNumber: otpContext === "abha" ? abhaInput.replace(/-/g, "") : undefined,
-        aadhaarLinked: otpContext === "aadhaar",
-        name: "Ramesh Kumar",
-        gender: "male",
-        yearOfBirth: 1978,
-      })
-    );
-    setLoading(false);
-    router.push("/consent");
+    setOtpError("");
+    try {
+      const res = await fetch("/api/abdm/mock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "verify_otp", txnId, otp: otpInput }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setOtpError(data.error ?? "OTP incorrect");
+        setLoading(false);
+        return;
+      }
+      const profile = data.abhaProfile ?? {};
+      sessionStorage.setItem(
+        "mk_patient",
+        JSON.stringify({
+          abhaNumber: profile.ABHANumber ?? (otpContext === "abha" ? abhaInput.replace(/-/g, "") : undefined),
+          aadhaarLinked: otpContext === "aadhaar",
+          loginMethod: otpContext,
+          name: profile.name ?? "Verified Patient",
+          gender: profile.gender === "M" ? "male" : profile.gender === "F" ? "female" : "other",
+          yearOfBirth: profile.yearOfBirth ?? 1980,
+        })
+      );
+      setLoading(false);
+      router.push("/consent");
+    } catch {
+      setOtpError("Verification failed. Please try again.");
+      setLoading(false);
+    }
   }
 
   function handleGuest() {
-    sessionStorage.setItem("mk_patient", JSON.stringify({ name: "Guest" }));
+    sessionStorage.setItem("mk_patient", JSON.stringify({ name: "Guest", loginMethod: "anonymous" }));
     router.push("/consent");
   }
+
 
   // ── OTP Screen ─────────────────────────────────────────────────
   if (method === "otp") {
@@ -104,11 +147,29 @@ export default function LoginPage() {
             placeholder="— — — — — —"
             value={otpInput}
             onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            className="w-48 text-center text-3xl tracking-[0.4em] font-bold
-                       border-2 border-neutral-300 rounded-2xl py-4
-                       focus:border-brand-500 focus:outline-none transition-colors"
+            className={`w-48 text-center text-3xl tracking-[0.4em] font-bold
+                       border-2 rounded-2xl py-4
+                       focus:outline-none transition-colors
+                       ${otpError ? "border-red-400 bg-red-50" : "border-neutral-300 focus:border-brand-500"}`}
             autoFocus
           />
+
+          {/* Error message */}
+          {otpError && (
+            <p className="text-sm text-red-600 font-semibold text-center bg-red-50
+                           border border-red-200 rounded-xl px-4 py-2 w-full max-w-xs">
+              ⚠️ {otpError}
+            </p>
+          )}
+
+          {/* Dev mode OTP hint */}
+          {devOtp && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-center w-full max-w-xs">
+              <p className="text-xs text-amber-600 font-bold uppercase tracking-wide">🧪 Dev Mode — OTP</p>
+              <p className="text-2xl font-black text-amber-800 tracking-widest">{devOtp}</p>
+              <p className="text-xs text-amber-500">This hint is hidden in production</p>
+            </div>
+          )}
 
           <Button
             variant="primary"
@@ -122,13 +183,17 @@ export default function LoginPage() {
             {t(lang, "verifyAndContinue")}
           </Button>
 
-          <button className="text-brand-600 text-sm font-semibold hover:underline">
+          <button
+            className="text-brand-600 text-sm font-semibold hover:underline"
+            onClick={() => handleSendOTP(otpContext)}
+          >
             🔁 {t(lang, "resendOTP")}
           </button>
         </KioskBody>
       </KioskScreen>
     );
   }
+
 
   // ── ABHA Number Input ──────────────────────────────────────────
   if (method === "abha") {

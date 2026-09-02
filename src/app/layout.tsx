@@ -47,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="hi" className={inter.variable}>
+    <html lang="hi" className={inter.variable} suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/logo.jpg" />
         <meta name="mobile-web-app-capable" content="yes" />
