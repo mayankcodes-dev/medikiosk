@@ -42,6 +42,24 @@ export function middleware(req: NextRequest) {
   res.headers.set("X-Frame-Options", "DENY");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set("Permissions-Policy", "camera=(), microphone=(self)");
+  res.headers.set(
+    "Strict-Transport-Security",
+    "max-age=63072000; includeSubDomains; preload"
+  );
+  res.headers.set(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-inline for hydration
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob:",
+      "media-src 'self' blob:",
+      "connect-src 'self' https://generativelanguage.googleapis.com https://dhruva-api.bhashini.gov.in https://dev.abdm.gov.in https://abhasbx.abdm.gov.in",
+      "worker-src 'self' blob:", // Service worker
+      "frame-ancestors 'none'",
+    ].join("; ")
+  );
 
   // ── Rate limit only API routes ────────────────────────────────
   if (pathname.startsWith("/api/")) {

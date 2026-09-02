@@ -33,13 +33,12 @@ const STATUS_LABEL: Record<QueuePatient["status"], string> = {
   done: "✅ Done",
 };
 
-// ── Simple PIN auth for doctor screen ────────────────────────────
-const DOCTOR_PIN = "1234"; // Change in production
-
+// ── Doctor auth — PIN verified server-side (never in client bundle) ──
 export default function DoctorDashboard() {
   const [authed, setAuthed] = useState(false);
   const [pin, setPin] = useState("");
-  const [pinError, setPinError] = useState(false);
+  const [pinError, setPinError] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
   const [data, setData] = useState<QueueData | null>(null);
   const [selected, setSelected] = useState<QueuePatient | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -111,6 +110,29 @@ export default function DoctorDashboard() {
 
   // ── PIN screen ────────────────────────────────────────────────
   if (!authed) {
+    async function handlePinSubmit() {
+      if (!pin || pin.length < 4) return;
+      setPinLoading(true);
+      setPinError("");
+      try {
+        const res = await fetch("/api/auth/doctor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setAuthed(true);
+        } else {
+          setPinError(data.error ?? "Incorrect PIN");
+          setPin("");
+        }
+      } catch {
+        setPinError("Network error. Try again.");
+      }
+      setPinLoading(false);
+    }
+
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
         <motion.div
@@ -130,13 +152,8 @@ export default function DoctorDashboard() {
               <input
                 type="password"
                 value={pin}
-                onChange={(e) => { setPin(e.target.value); setPinError(false); }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    if (pin === DOCTOR_PIN) setAuthed(true);
-                    else { setPinError(true); setPin(""); }
-                  }
-                }}
+                onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 8)); setPinError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handlePinSubmit(); }}
                 placeholder="Enter PIN"
                 className={cn(
                   "w-full border-2 rounded-xl px-4 py-3 text-center text-xl",
@@ -148,24 +165,27 @@ export default function DoctorDashboard() {
                 autoFocus
               />
               {pinError && (
-                <p className="text-xs text-red-600 text-center mt-1">Incorrect PIN</p>
+                <p className="text-xs text-red-600 text-center mt-1">{pinError}</p>
               )}
             </div>
 
             <button
-              onClick={() => {
-                if (pin === DOCTOR_PIN) setAuthed(true);
-                else { setPinError(true); setPin(""); }
-              }}
+              onClick={handlePinSubmit}
+              disabled={pin.length < 4 || pinLoading}
               className="w-full bg-brand-600 text-white font-bold py-3 rounded-xl
-                         hover:bg-brand-700 transition-colors"
+                         hover:bg-brand-700 transition-colors disabled:opacity-50
+                         disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Enter Dashboard →
+              {pinLoading ? (
+                <><span className="animate-spin">⏳</span> Verifying…</>
+              ) : (
+                "Enter Dashboard →"
+              )}
             </button>
           </div>
 
-          <p className="text-xs text-neutral-400 text-center mt-4">
-            Default PIN: 1234
+          <p className="text-xs text-neutral-300 text-center mt-4">
+            Authorised personnel only
           </p>
         </motion.div>
       </div>
