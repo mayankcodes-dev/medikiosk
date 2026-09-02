@@ -405,8 +405,6 @@ MediKiosk is purpose-built for the **Ministry of AYUSH** ecosystem:
 
 *Built with ❤️ for India's 1.4 billion patients*
 
-**Ministry of AYUSH · Problem Statement PS 26047 · Smart India Hackathon 2026**
-
 🌐 **Live:** [medikiosk.mayankcodes.dev](https://medikiosk.mayankcodes.dev/)
 
 </div>
