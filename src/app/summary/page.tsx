@@ -10,199 +10,225 @@ import {
   KioskBody,
   KioskFooter,
 } from "@/components/kiosk/KioskLayout";
-import { Button, Card, Badge, Spinner } from "@/components/ui/primitives";
-
-// ── Mock summary generation for Phase 0 ─────────────────────────
-const MOCK_SUMMARY = {
-  patient: { name: "Ramesh Kumar", abha: "91-1234-5678-9012", age: "48M" },
-  chiefComplaint: "Fever with headache × 3 days",
-  hpi: "Patient c/o high-grade fever (38.5°C) with severe bifrontal headache since 3 days. Fever is continuous. Associated with mild nausea. No vomiting, no rash, no cold/cough.",
-  pastHistory: "Known case of Type 2 Diabetes Mellitus (T2DM) and Hypertension",
-  drugHistory: "Metformin 500mg BD, Amlodipine 5mg OD (from OCR'd prescription)",
-  allergies: "NKDA (No Known Drug Allergy)",
-  familyHistory: "Not reported",
-  personalHistory: "Non-smoker, non-alcoholic",
-  ros: "CVS: No chest pain. RS: No breathlessness. GIT: Mild nausea. CNS: Headache present.",
-  investigations: [
-    { test: "RBS", value: "182 mg/dL", ref: "70-140", flag: "HIGH ⚠️" },
-    { test: "Hb", value: "11.2 g/dL", ref: "13-17", flag: "LOW ⚠️" },
-    { test: "Platelet", value: "1.2 L/cumm", ref: "1.5-4.0", flag: "LOW ⚠️" },
-  ],
-  alerts: [
-    "⚠️ Low platelet count — consider dengue workup",
-    "⚠️ Random blood sugar elevated — adjust Metformin?",
-    "⚠️ Mild anaemia noted",
-  ],
-  tokenNumber: "A-042",
-};
+import { Button, Card, Badge } from "@/components/ui/primitives";
+import type { StructuredSummary } from "@/app/api/history/chat/route";
+import { cn } from "@/lib/utils";
 
 type SummaryStatus = "generating" | "ready";
 
+// ── Fallback if no real summary in sessionStorage ────────────────
+const MOCK_SUMMARY: StructuredSummary = {
+  chiefComplaint: "Fever with headache",
+  duration: "3 days",
+  severity: "moderate",
+  character: "Continuous, throbbing headache",
+  associatedSymptoms: ["Nausea", "Mild cough"],
+  pastHistory: "Type 2 Diabetes, Hypertension",
+  currentMedications: "Metformin 500mg, Amlodipine 5mg",
+  suggestedICD10: "R50.9 — Fever, unspecified",
+  redFlags: ["Low platelet — consider dengue workup", "Elevated RBS — review Metformin dose"],
+  ayushNote: "Pitta-dominant presentation. Possible Vishama Jwara. Recommend Dashavidha Pariksha.",
+};
+
+const SEV_COLORS: Record<string, string> = {
+  mild: "bg-green-50 text-green-700 border-green-200",
+  moderate: "bg-secondary-50 text-secondary-700 border-secondary-200",
+  severe: "bg-red-50 text-red-700 border-red-200",
+  "very severe": "bg-red-100 text-red-800 border-red-300",
+};
+
 export default function SummaryPage() {
   const router = useRouter();
+  const [lang, setLang] = useState("hi");
   const [status, setStatus] = useState<SummaryStatus>("generating");
   const [submitted, setSubmitted] = useState(false);
+  const [summary, setSummary] = useState<StructuredSummary>(MOCK_SUMMARY);
+  const [tokenNumber] = useState(`A-${String(Math.floor(Math.random() * 99) + 1).padStart(3, "0")}`);
 
-  // Simulate summary generation
   useEffect(() => {
-    const t = setTimeout(() => setStatus("ready"), 2500);
-    return () => clearTimeout(t);
+    setLang(sessionStorage.getItem("mk_lang") ?? "hi");
+
+    // Load real AI summary from history page if available
+    const saved = sessionStorage.getItem("mk_history");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.summary) {
+          setSummary(parsed.summary);
+        }
+      } catch { /* use fallback */ }
+    }
+
+    const timer = setTimeout(() => setStatus("ready"), 2000);
+    return () => clearTimeout(timer);
   }, []);
 
-  async function handleConfirmAndSubmit() {
+  async function handleSubmit() {
     setSubmitted(true);
-    await new Promise((r) => setTimeout(r, 1200));
+    sessionStorage.setItem("mk_summary_submitted", "true");
+    await new Promise((r) => setTimeout(r, 1000));
     router.push("/complete");
   }
 
+  // ── Generating screen ─────────────────────────────────────────
   if (status === "generating") {
     return (
-      <KioskScreen centered>
-        <div className="flex flex-col items-center gap-6 px-8 text-center">
-          <div className="relative">
-            <div className="h-24 w-24 rounded-full bg-brand-50 flex items-center justify-center text-5xl">
-              🧠
-            </div>
-            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1">
-              <Spinner className="h-6 w-6" />
-            </div>
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-neutral-900">
-              AI सारांश बना रहा है
+      <KioskScreen>
+        <KioskBody className="flex flex-col items-center justify-center gap-6 py-16">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            className="h-14 w-14 rounded-full border-4 border-brand-100 border-t-brand-600"
+          />
+          <div className="text-center space-y-1">
+            <h2 className="text-xl font-bold text-neutral-900">
+              {t(lang, "summaryReady")}...
             </h2>
-            <p className="text-neutral-500 mt-1">
-              Generating your clinical summary...
+            <p className="text-sm text-neutral-400">
+              AI is structuring your medical history
             </p>
           </div>
-          <div className="flex flex-col gap-2 text-sm text-neutral-400 w-full max-w-xs">
-            {[
-              "✅ Voice history processed",
-              "✅ Documents analysed",
-              "⏳ Generating physician summary...",
-            ].map((step, i) => (
-              <motion.p
-                key={i}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: i * 0.6 }}
+          <div className="text-left w-full max-w-xs space-y-2">
+            {["Organising symptoms...", "Mapping ICD-10 codes...", "Checking red flags...", "Generating AYUSH note..."].map((step, i) => (
+              <motion.div
+                key={step}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.4 }}
+                className="flex items-center gap-2 text-sm text-neutral-500"
               >
-                {step}
-              </motion.p>
+                <span className="text-brand-500">✓</span> {step}
+              </motion.div>
             ))}
           </div>
-        </div>
+        </KioskBody>
       </KioskScreen>
     );
   }
 
+  // ── Ready screen ──────────────────────────────────────────────
+  const sevColor = SEV_COLORS[summary.severity?.toLowerCase()] ?? SEV_COLORS.moderate;
+
   return (
     <KioskScreen>
       <KioskHeader
-        title="आपका सारांश तैयार है"
-        subtitle="Clinical Summary — Step 6 of 6"
+        title={t(lang, "summaryReady")}
+        subtitle="AI Clinical Summary Ready"
         onBack={() => router.push("/scan")}
-        progress={100}
-        stepLabel="Step 6 of 6"
+        progress={90}
+        stepLabel="6 / 6"
       />
 
-      <KioskBody className="space-y-4">
-        {/* Patient token */}
+      <KioskBody className="space-y-3">
+        {/* Token number */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-brand-600 text-white rounded-2xl p-5 flex items-center justify-between"
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="flex items-center justify-between bg-brand-600 text-white
+                     rounded-2xl px-5 py-4"
         >
           <div>
-            <p className="text-sm text-brand-200">Your Token Number</p>
-            <p className="text-4xl font-extrabold tracking-wider">
-              {MOCK_SUMMARY.tokenNumber}
-            </p>
-            <p className="text-sm text-brand-200 mt-1">
-              {MOCK_SUMMARY.patient.name} · {MOCK_SUMMARY.patient.age}
-            </p>
+            <p className="text-sm font-medium opacity-80">{t(lang, "yourToken")}</p>
+            <p className="text-4xl font-black tracking-wide">{tokenNumber}</p>
+            <p className="text-xs opacity-70 mt-1">Your Token Number</p>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-brand-200">ABHA linked</p>
-            <p className="text-sm font-mono text-brand-100">
-              {MOCK_SUMMARY.patient.abha.slice(-8)}
-            </p>
-            <Badge variant="success" className="mt-2 bg-white/20 text-white">
-              ✅ Summary Ready
-            </Badge>
-          </div>
+          <div className="text-5xl">🎫</div>
         </motion.div>
 
-        {/* Alerts */}
-        {MOCK_SUMMARY.alerts.length > 0 && (
-          <Card className="p-4 border-warning-200 bg-warning-50">
-            <p className="font-bold text-warning-700 text-sm mb-2">
-              🚨 Doctor Alerts (AI Flagged)
+        {/* Chief complaint + severity */}
+        <Card className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <p className="text-xs text-neutral-400 font-semibold uppercase tracking-wide mb-1">
+                Chief Complaint
+              </p>
+              <p className="font-bold text-neutral-900 text-base leading-snug">
+                {summary.chiefComplaint}
+              </p>
+              <p className="text-sm text-neutral-500 mt-1">
+                Duration: <span className="font-semibold">{summary.duration}</span>
+              </p>
+            </div>
+            <span className={cn(
+              "text-xs font-bold px-3 py-1.5 rounded-full border shrink-0",
+              sevColor
+            )}>
+              {summary.severity}
+            </span>
+          </div>
+          {summary.character && (
+            <p className="text-sm text-neutral-600 mt-2 pt-2 border-t border-neutral-100">
+              <span className="font-semibold">Character: </span>{summary.character}
             </p>
-            <ul className="space-y-1">
-              {MOCK_SUMMARY.alerts.map((a, i) => (
-                <li key={i} className="text-sm text-warning-700">{a}</li>
+          )}
+        </Card>
+
+        {/* Associated symptoms */}
+        {summary.associatedSymptoms?.length > 0 && (
+          <Card className="p-4">
+            <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
+              Associated Symptoms
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {summary.associatedSymptoms.map((s) => (
+                <span key={s} className="bg-neutral-100 text-neutral-700 text-sm
+                                         px-3 py-1 rounded-full font-medium">
+                  {s}
+                </span>
               ))}
-            </ul>
+            </div>
           </Card>
         )}
 
-        {/* Summary sections */}
-        {[
-          { label: "🩺 Chief Complaint", value: MOCK_SUMMARY.chiefComplaint },
-          { label: "📋 History of Present Illness", value: MOCK_SUMMARY.hpi },
-          { label: "🏥 Past Medical History", value: MOCK_SUMMARY.pastHistory },
-          { label: "💊 Drug History", value: MOCK_SUMMARY.drugHistory },
-          { label: "⚠️ Allergies", value: MOCK_SUMMARY.allergies },
-          { label: "🔬 Review of Systems", value: MOCK_SUMMARY.ros },
-        ].map((section, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-          >
-            <Card className="p-4">
-              <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">
-                {section.label}
-              </p>
-              <p className="text-sm text-neutral-800 leading-relaxed">
-                {section.value}
-              </p>
-            </Card>
-          </motion.div>
-        ))}
+        {/* Past history + medications */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <Card className="p-3">
+            <p className="text-xs font-semibold text-neutral-400 uppercase mb-1.5">Past History</p>
+            <p className="text-sm text-neutral-700">{summary.pastHistory || "None reported"}</p>
+          </Card>
+          <Card className="p-3">
+            <p className="text-xs font-semibold text-neutral-400 uppercase mb-1.5">Medications</p>
+            <p className="text-sm text-neutral-700">{summary.currentMedications || "None"}</p>
+          </Card>
+        </div>
 
-        {/* Investigations */}
-        <Card className="p-4">
-          <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">
-            🧪 Prior Investigations (from documents)
-          </p>
-          <div className="space-y-2">
-            {MOCK_SUMMARY.investigations.map((inv, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="text-sm text-neutral-700">{inv.test}</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-neutral-900 text-sm">{inv.value}</span>
-                  <span className="text-xs text-neutral-400">({inv.ref})</span>
-                  {inv.flag && (
-                    <Badge variant="warning" className="text-xs px-2 py-0.5">
-                      {inv.flag}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            ))}
+        {/* ICD-10 */}
+        <Card className="p-4 flex items-center gap-3">
+          <span className="text-2xl">🏷️</span>
+          <div>
+            <p className="text-xs text-neutral-400 font-semibold uppercase tracking-wide">Suggested ICD-10</p>
+            <p className="font-bold text-neutral-900 text-sm">{summary.suggestedICD10}</p>
           </div>
         </Card>
 
-        {/* Draft disclaimer */}
-        <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-4">
-          <p className="text-xs text-neutral-500 text-center">
-            📝 This is an AI-generated <strong>draft</strong> for physician review.
-            Your doctor will verify and edit before finalising.
-          </p>
-        </div>
+        {/* Red flags */}
+        {summary.redFlags?.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-2"
+          >
+            <p className="text-sm font-bold text-red-800 flex items-center gap-2">
+              🚨 Red Flags — Doctor Attention Required
+            </p>
+            {summary.redFlags.map((flag) => (
+              <p key={flag} className="text-sm text-red-700 flex items-start gap-2">
+                <span className="shrink-0 mt-0.5">⚠️</span> {flag}
+              </p>
+            ))}
+          </motion.div>
+        )}
+
+        {/* AYUSH note */}
+        {summary.ayushNote && (
+          <Card className="p-4 bg-green-50 border-green-200">
+            <p className="text-xs font-semibold text-green-800 uppercase tracking-wide mb-1">
+              🌿 AYUSH Clinical Note
+            </p>
+            <p className="text-sm text-green-900">{summary.ayushNote}</p>
+          </Card>
+        )}
       </KioskBody>
 
       <KioskFooter>
@@ -211,9 +237,9 @@ export default function SummaryPage() {
           size="xl"
           fullWidth
           loading={submitted}
-          onClick={handleConfirmAndSubmit}
+          onClick={handleSubmit}
         >
-          ✅ &nbsp;डॉक्टर को भेजें / Submit to Doctor
+          {submitted ? "Submitting..." : `✅ ${t(lang, "submitToDoctor")}`}
         </Button>
       </KioskFooter>
     </KioskScreen>
