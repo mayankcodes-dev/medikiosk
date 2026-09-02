@@ -12,7 +12,6 @@
 
 **🏥 An AI voice agent that takes a patient's full clinical history in their native Indian language — before they even enter the doctor's room.**
 
-*Ministry of AYUSH · Problem Statement PS 26047 · Smart India Hackathon 2026*
 
 [**→ Try Live Demo**](https://medikiosk.mayankcodes.dev/)
 
