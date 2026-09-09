@@ -184,26 +184,41 @@ export async function POST(req: NextRequest) {
     }
 
     const prompt = DOC_PROMPTS[docType] ?? DOC_PROMPTS.other;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              inlineData: {
-                mimeType: cleanMime,
-                data: imageBase64,
-              },
-            },
-            {
-              text: `${prompt}\nIMPORTANT: Respond with the JSON object ONLY. No markdown conversational commentary before or after.`,
-            },
-          ],
+    const parts = [
+      {
+        inlineData: {
+          mimeType: cleanMime,
+          data: imageBase64,
         },
-      ],
-    });
+      },
+      {
+        text: `${prompt}\nIMPORTANT: Respond with the JSON object ONLY. No markdown conversational commentary before or after.`,
+      },
+    ];
+
+    const modelsToTry = [
+      process.env.GEMINI_MODEL,
+      "gemini-2.5-flash",
+      "gemini-1.5-flash",
+      "gemini-2.0-flash",
+    ].filter(Boolean) as string[];
+
+    let response: any = null;
+    let lastErr: any = null;
+    for (const model of modelsToTry) {
+      try {
+        response = await ai.models.generateContent({
+          model,
+          contents: [{ role: "user", parts }],
+        });
+        if (response?.text) break;
+      } catch (err: any) {
+        lastErr = err;
+        console.warn(`[scan/extract] Model ${model} failed, trying next...`);
+      }
+    }
+
+    if (!response && lastErr) throw lastErr;
 
     const raw = response.text ?? "";
     console.log("[scan/extract] Raw response length:", raw.length);

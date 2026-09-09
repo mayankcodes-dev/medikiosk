@@ -242,11 +242,26 @@ JSON Schema:
 }`;
 
       try {
-        const response = await ai.models.generateContent({
-          model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
-          contents: summaryPrompt,
-        });
-        const raw = response.text ?? "{}";
+        const modelsToTry = [
+          process.env.GEMINI_MODEL,
+          "gemini-2.5-flash",
+          "gemini-1.5-flash",
+          "gemini-2.0-flash",
+        ].filter(Boolean) as string[];
+
+        let response: any = null;
+        for (const model of modelsToTry) {
+          try {
+            response = await ai.models.generateContent({
+              model,
+              contents: summaryPrompt,
+            });
+            if (response?.text) break;
+          } catch {
+            // try next model
+          }
+        }
+        const raw = response?.text ?? "{}";
         // Strip markdown code fences if present
         const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
         const structuredSummary: StructuredSummary = JSON.parse(cleaned);
@@ -286,16 +301,31 @@ ${conversationHistory || "(No conversation yet — this is the first question)"}
 Ask the next question for stage "${stage}". Reply with ONLY the question in ${LANG_NAMES[lang] ?? "Hindi"}. No explanation, no prefix.`;
 
     try {
-      const response = await ai.models.generateContent({
-        model: process.env.GEMINI_MODEL ?? "gemini-2.0-flash",
-        contents: [
-          { role: "user", parts: [{ text: buildSystemPrompt(lang) }] },
-          { role: "model", parts: [{ text: "Understood. I will ask one question at a time in the patient's language." }] },
-          { role: "user", parts: [{ text: userPrompt }] },
-        ],
-      });
+      const modelsToTry = [
+        process.env.GEMINI_MODEL,
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
+      ].filter(Boolean) as string[];
 
-      const question = response.text?.trim() ?? getFallbackQuestion(stage, lang);
+      let response: any = null;
+      for (const model of modelsToTry) {
+        try {
+          response = await ai.models.generateContent({
+            model,
+            contents: [
+              { role: "user", parts: [{ text: buildSystemPrompt(lang) }] },
+              { role: "model", parts: [{ text: "Understood. I will ask one question at a time in the patient's language." }] },
+              { role: "user", parts: [{ text: userPrompt }] },
+            ],
+          });
+          if (response?.text) break;
+        } catch {
+          // try next model
+        }
+      }
+
+      const question = response?.text?.trim() ?? getFallbackQuestion(stage, lang);
       return NextResponse.json({ question, nextStage, isComplete: false } as ChatResponse);
     } catch {
       // Fallback to static question
