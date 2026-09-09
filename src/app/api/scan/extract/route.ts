@@ -1,7 +1,7 @@
 // src/app/api/scan/extract/route.ts
 // Gemini Vision — extract structured data from medical documents
-// Handles: prescriptions, lab reports, discharge summaries, X-rays
-// Input: base64 image + document type
+// Handles: prescriptions, lab reports, discharge summaries, X-rays, PDFs
+// Input: base64 image/pdf + document type
 // Output: structured JSON with medications, vitals, diagnoses, lab values
 
 import { NextRequest, NextResponse } from "next/server";
@@ -49,90 +49,122 @@ export interface ExtractedDoc {
 }
 
 const DOC_PROMPTS: Record<DocType, string> = {
-  prescription: `Extract ALL information from this Indian medical prescription image.
-Return ONLY valid JSON matching this exact schema:
+  prescription: `Extract ALL clinical and medication information from this medical prescription (printed or handwritten).
+Even if the document is partially blurred or handwritten, transcribe everything readable.
+Return ONLY valid JSON with this exact schema:
 {
   "docType": "prescription",
   "medications": [{"name": "drug name", "dose": "500mg", "frequency": "BD/TDS/OD/SOS", "duration": "5 days"}],
-  "vitals": {"BP": "120/80", "temperature": "", "SpO2": "", "pulse": "", "weight": "", "height": "", "RBS": ""},
-  "diagnoses": ["diagnosis 1", "diagnosis 2"],
+  "vitals": {"BP": "", "temperature": "", "SpO2": "", "pulse": "", "weight": "", "height": "", "RBS": ""},
+  "diagnoses": ["diagnosis 1"],
   "labValues": [],
-  "doctorName": "Dr. Name",
-  "hospitalName": "Hospital name if visible",
+  "doctorName": "Dr. Name if visible",
+  "hospitalName": "Hospital/Clinic name if visible",
   "date": "DD/MM/YYYY if visible",
-  "notes": "Any special instructions",
+  "notes": "Any clinical advice or notes",
   "confidence": "high|medium|low"
-}
-Note: Indian prescriptions are often handwritten. Do your best. Use confidence: "low" if handwriting is unclear.`,
+}`,
 
-  lab_report: `Extract ALL lab values from this Indian pathology/laboratory report image.
-Return ONLY valid JSON:
+  lab_report: `Extract ALL laboratory investigations, blood tests, pathology metrics from this lab report.
+Even if the document is scanned, photographed, or slightly blurred, identify the test names, observed values, units, reference intervals, and whether it is High (H), Low (L), or Normal (N).
+Return ONLY valid JSON with this exact schema:
 {
   "docType": "lab_report",
   "medications": [],
   "vitals": {"RBS": "value if present"},
   "diagnoses": [],
   "labValues": [
-    {"test": "Haemoglobin", "value": "11.2", "unit": "g/dL", "reference": "13-17", "flag": "L"},
+    {"test": "Hemoglobin", "value": "11.2", "unit": "g/dL", "reference": "13.0-17.0", "flag": "L"},
     {"test": "Platelet Count", "value": "1.8", "unit": "Lakhs/cumm", "reference": "1.5-4.5", "flag": "N"}
   ],
-  "doctorName": "",
-  "hospitalName": "Lab/hospital name",
-  "date": "date of report",
-  "notes": "any clinical notes",
-  "confidence": "high|medium|low"
-}
-Flag: "H" = above reference, "L" = below reference, "N" = normal, "" = unknown.`,
-
-  discharge_summary: `Extract ALL clinical information from this hospital discharge summary.
-Return ONLY valid JSON:
-{
-  "docType": "discharge_summary",
-  "medications": [{"name": "", "dose": "", "frequency": "", "duration": ""}],
-  "vitals": {"BP": "", "temperature": "", "SpO2": "", "pulse": "", "weight": "", "height": "", "RBS": ""},
-  "diagnoses": ["Primary diagnosis", "Secondary diagnoses"],
-  "labValues": [{"test": "", "value": "", "unit": "", "reference": "", "flag": ""}],
-  "doctorName": "Treating doctor",
-  "hospitalName": "Hospital name",
-  "date": "Date of discharge",
-  "notes": "Follow-up instructions, diet advice",
+  "doctorName": "Referring Doctor if visible",
+  "hospitalName": "Laboratory or Diagnostic center name",
+  "date": "Date of collection/reporting",
+  "notes": "Key impression or findings",
   "confidence": "high|medium|low"
 }`,
 
-  xray_report: `Extract information from this X-ray/radiology report.
-Return ONLY valid JSON:
+  discharge_summary: `Extract ALL clinical information from this hospital discharge summary.
+Return ONLY valid JSON with this exact schema:
+{
+  "docType": "discharge_summary",
+  "medications": [{"name": "Medicine", "dose": "500mg", "frequency": "OD", "duration": "10 days"}],
+  "vitals": {"BP": "", "temperature": "", "SpO2": "", "pulse": "", "weight": "", "height": "", "RBS": ""},
+  "diagnoses": ["Primary diagnosis", "Secondary diagnoses"],
+  "labValues": [{"test": "", "value": "", "unit": "", "reference": "", "flag": ""}],
+  "doctorName": "Treating consultant",
+  "hospitalName": "Hospital name",
+  "date": "Discharge date",
+  "notes": "Advice on discharge, follow-up date",
+  "confidence": "high|medium|low"
+}`,
+
+  xray_report: `Extract radiological impression and diagnostic findings from this radiology/X-ray/CT/MRI report.
+Return ONLY valid JSON with this exact schema:
 {
   "docType": "xray_report",
   "medications": [],
   "vitals": {},
-  "diagnoses": ["radiological findings as diagnoses"],
+  "diagnoses": ["Radiological impression"],
   "labValues": [],
   "doctorName": "Radiologist name",
-  "hospitalName": "",
-  "date": "",
-  "notes": "Impression / recommendation",
+  "hospitalName": "Imaging center",
+  "date": "Scan date",
+  "notes": "Findings and summary",
   "confidence": "high|medium|low"
 }`,
 
-  other: `Extract any medical information visible in this document image.
-Return ONLY valid JSON:
+  other: `Extract any clinical or diagnostic information from this medical document.
+Return ONLY valid JSON with this exact schema:
 {
   "docType": "other",
   "medications": [],
   "vitals": {},
-  "diagnoses": [],
+  "diagnoses": ["Key findings"],
   "labValues": [],
   "doctorName": "",
   "hospitalName": "",
   "date": "",
-  "notes": "Key information found in the document",
+  "notes": "Key clinical summary",
   "confidence": "high|medium|low"
 }`,
 };
 
+// ── Resilient JSON parser ─────────────────────────────────────────
+function parseModelJson(raw: string): any {
+  // 1. Try matching ```json ... ``` block
+  const blockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (blockMatch && blockMatch[1]) {
+    try {
+      return JSON.parse(blockMatch[1].trim());
+    } catch {
+      // continue
+    }
+  }
+
+  // 2. Find outermost { and }
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start !== -1 && end !== -1 && end > start) {
+    try {
+      return JSON.parse(raw.substring(start, end + 1).trim());
+    } catch {
+      // continue
+    }
+  }
+
+  // 3. Direct attempt after clean
+  const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  return JSON.parse(cleaned);
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64, mimeType, docType }: {
+    const {
+      imageBase64,
+      mimeType,
+      docType,
+    }: {
       imageBase64: string;
       mimeType: string;
       docType: DocType;
@@ -140,9 +172,15 @@ export async function POST(req: NextRequest) {
 
     if (!imageBase64 || !docType) {
       return NextResponse.json(
-        { error: "imageBase64 and docType are required" },
+        { error: "Document data and type are required" },
         { status: 400 }
       );
+    }
+
+    // Clean mimeType (remove charset or params)
+    let cleanMime = (mimeType || "image/jpeg").split(";")[0].trim();
+    if (!cleanMime || cleanMime === "application/octet-stream") {
+      cleanMime = "image/jpeg";
     }
 
     const prompt = DOC_PROMPTS[docType] ?? DOC_PROMPTS.other;
@@ -155,29 +193,50 @@ export async function POST(req: NextRequest) {
           parts: [
             {
               inlineData: {
-                mimeType: mimeType ?? "image/jpeg",
+                mimeType: cleanMime,
                 data: imageBase64,
               },
             },
-            { text: prompt },
+            {
+              text: `${prompt}\nIMPORTANT: Respond with the JSON object ONLY. No markdown conversational commentary before or after.`,
+            },
           ],
         },
       ],
     });
 
-    const raw = response.text ?? "{}";
-    // Strip markdown code fences
-    const cleaned = raw
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
+    const raw = response.text ?? "";
+    console.log("[scan/extract] Raw response length:", raw.length);
 
-    const extracted: ExtractedDoc = JSON.parse(cleaned);
-    return NextResponse.json({ success: true, data: extracted });
-  } catch (err) {
-    console.error("[scan/extract] error:", err);
+    try {
+      const extracted: ExtractedDoc = parseModelJson(raw);
+      // Ensure required structure fields exist
+      extracted.docType = extracted.docType || docType;
+      extracted.medications = Array.isArray(extracted.medications) ? extracted.medications : [];
+      extracted.labValues = Array.isArray(extracted.labValues) ? extracted.labValues : [];
+      extracted.diagnoses = Array.isArray(extracted.diagnoses) ? extracted.diagnoses : [];
+      extracted.vitals = extracted.vitals || {};
+      extracted.confidence = extracted.confidence || "medium";
+
+      return NextResponse.json({ success: true, data: extracted });
+    } catch (parseError) {
+      console.warn("[scan/extract] JSON parse failed, returning fallback extraction. Raw:", raw.slice(0, 300));
+      // Fallback extraction so workflow never completely fails on noisy/blurry documents
+      const fallback: ExtractedDoc = {
+        docType,
+        medications: [],
+        vitals: {},
+        diagnoses: ["Document analyzed with low confidence"],
+        labValues: [],
+        notes: raw.slice(0, 400).replace(/[`{}"[\]]/g, " ").trim() || "Analyzed document",
+        confidence: "low",
+      };
+      return NextResponse.json({ success: true, data: fallback });
+    }
+  } catch (err: any) {
+    console.error("[scan/extract] error:", err?.message || err);
     return NextResponse.json(
-      { error: "Extraction failed. Please try a clearer image." },
+      { error: "Extraction failed. Please ensure file is valid image/PDF under 10MB." },
       { status: 500 }
     );
   }

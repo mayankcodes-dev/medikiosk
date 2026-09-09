@@ -3,7 +3,7 @@ import { forwardRef } from "react";
 
 // ─── Button ─────────────────────────────────────────────────────
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "ghost" | "danger" | "success";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "success" | "outline";
   size?: "sm" | "md" | "lg" | "xl";
   loading?: boolean;
   icon?: React.ReactNode;
@@ -37,6 +37,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         "bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100 disabled:opacity-50",
       ghost:
         "bg-transparent text-neutral-700 hover:bg-neutral-100 disabled:opacity-40",
+      outline:
+        "bg-transparent text-neutral-700 border-2 border-neutral-300 hover:border-brand-400 hover:bg-brand-50 disabled:opacity-40",
       danger:
         "bg-error-600 text-white hover:bg-red-700 shadow-sm disabled:opacity-50",
       success:

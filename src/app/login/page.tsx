@@ -228,6 +228,13 @@ export default function LoginPage() {
                          focus:border-brand-500 focus:outline-none transition-colors"
               autoFocus
             />
+            <button
+              type="button"
+              onClick={() => setAbhaInput("91845210934125")}
+              className="text-xs bg-blue-50 hover:bg-blue-100 text-brand-700 border border-brand-200 rounded-full px-3 py-1.5 font-medium mx-auto block transition-colors"
+            >
+              🧪 Demo Sandbox ABHA: 91-8452-1093-4125
+            </button>
           </div>
           <Button
             variant="primary"
@@ -275,6 +282,13 @@ export default function LoginPage() {
                          focus:border-secondary-500 focus:outline-none transition-colors"
               autoFocus
             />
+            <button
+              type="button"
+              onClick={() => setAadhaarInput("542189632145")}
+              className="text-xs bg-orange-50 hover:bg-orange-100 text-secondary-700 border border-secondary-200 rounded-full px-3 py-1.5 font-medium mx-auto block transition-colors"
+            >
+              🧪 Demo Sandbox Aadhaar: 5421 8963 2145
+            </button>
             <p className="text-xs text-neutral-400 text-center">
               🔒 {t(lang, "aadhaarNeverStored")}
             </p>

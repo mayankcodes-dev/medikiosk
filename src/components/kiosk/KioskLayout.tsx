@@ -198,14 +198,16 @@ export function MediKioskLogo({
 // ─── AudioWave — animated wave visualiser ───────────────────────
 export function AudioWave({
   active,
+  bars = 5,
   className,
 }: {
   active: boolean;
+  bars?: number;
   className?: string;
 }) {
   return (
     <div className={cn("flex items-center gap-1 h-8", className)}>
-      {[1, 2, 3, 4, 5].map((i) => (
+      {Array.from({ length: bars }, (_, i) => i + 1).map((i) => (
         <motion.div
           key={i}
           className="w-1 rounded-full bg-brand-600"

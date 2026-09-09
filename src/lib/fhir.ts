@@ -101,7 +101,18 @@ export function buildFHIRBundle(
   };
 
   // ── Medication statements from summary ────────────────────────
-  const medicationStatements = (summary.currentMedications ?? []).map((med, i) => ({
+  // currentMedications may be a plain string (comma-separated) or a string[] after future refactor
+  const medList: string[] = (() => {
+    const raw = summary.currentMedications;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as string[];
+    return (raw as string)
+      .split(/[,;،、\n]+/)
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 0);
+  })();
+
+  const medicationStatements = medList.map((med: string, i: number) => ({
     resourceType: "MedicationStatement",
     id: `med-${sessionId}-${i}`,
     status: "active",
@@ -166,7 +177,7 @@ export function buildFHIRBundle(
         ? [
             {
               title: "Current Medications",
-              entry: medicationStatements.map((_, i) => ({
+              entry: medicationStatements.map((_: object, i: number) => ({
                 reference: `MedicationStatement/med-${sessionId}-${i}`,
               })),
             },
@@ -194,11 +205,11 @@ export function buildFHIRBundle(
       { fullUrl: `Patient/${patientId}`, resource: patientResource },
       { fullUrl: `Encounter/${encounterId}`, resource: encounterResource },
       { fullUrl: `Condition/${conditionId}`, resource: conditionResource },
-      ...medicationStatements.map((ms, i) => ({
+      ...medicationStatements.map((ms: object, i: number) => ({
         fullUrl: `MedicationStatement/med-${sessionId}-${i}`,
         resource: ms,
       })),
-      ...ayushObservation.map((obs) => ({
+      ...ayushObservation.map((obs: object) => ({
         fullUrl: `Observation/obs-ayush-${sessionId}`,
         resource: obs,
       })),

@@ -94,7 +94,8 @@ export function useVoiceSession({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [engine, setEngine] = useState<VoiceEngine>("none");
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const recorderRef = useRef<BhashiniRecorder | null>(null);
 
@@ -192,9 +193,13 @@ export function useVoiceSession({
     }
 
     // ── Web Speech API fallback ──────────────────────────────────
-    const SpeechRecognitionAPI =
-      (window as typeof window & { SpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition ??
-      (window as typeof window & { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type SpeechRecognitionCtor = new () => any;
+    const SpeechRecognitionAPI: SpeechRecognitionCtor | undefined =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).SpeechRecognition ??
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognitionAPI || !webSpeechInfo.supported) {
       onError?.(

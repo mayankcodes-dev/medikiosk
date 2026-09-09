@@ -30,6 +30,19 @@ export const metadata: Metadata = {
     url: "https://medikiosk.mayankcodes.dev",
     siteName: "MediKiosk",
     type: "website",
+    images: [
+      {
+        url: "/logo.jpg",
+        width: 512,
+        height: 512,
+        alt: "MediKiosk Logo",
+      },
+    ],
+  },
+  icons: {
+    icon: "/logo.jpg",
+    shortcut: "/logo.jpg",
+    apple: "/logo.jpg",
   },
 };
 
@@ -49,6 +62,7 @@ export default function RootLayout({
   return (
     <html lang="hi" className={inter.variable} suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/logo.jpg" />
         <link rel="apple-touch-icon" href="/logo.jpg" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>

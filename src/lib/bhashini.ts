@@ -44,25 +44,48 @@ const TTS_SERVICE_IDS: Record<string, string> = {
   ur: "ai4bharat/indic-tts-coqui-ur-gpu--t4",
 };
 
+function getUserId() {
+  return process.env.NEXT_PUBLIC_BHASHINI_USER_ID ?? "";
+}
+
+function getApiKey() {
+  return process.env.NEXT_PUBLIC_BHASHINI_API_KEY ?? "";
+}
+
 // ── Check if Bhashini is configured ──────────────────────────────
 export function isBhashiniConfigured(): boolean {
-  return Boolean(USER_ID && API_KEY);
+  return Boolean(getUserId() && getApiKey());
 }
 
 // ── Common headers ────────────────────────────────────────────────
 function getHeaders() {
+  const apiKey = getApiKey();
+  const userId = getUserId();
   return {
     "Content-Type": "application/json",
-    Authorization: API_KEY,
-    userID: USER_ID,
+    Authorization: apiKey,
+    ulcaApiKey: apiKey,
+    userID: userId,
   };
 }
 
 // ── ASR: Audio Blob → Transcript string ──────────────────────────
+// NOTE: Browser MediaRecorder records WebM/Opus by default.
+// Bhashini Dhruva (IndicConformer) accepts "webm" format via the audioFormat field.
+// If the deployment uses a model that only accepts WAV, a server-side transcode
+// endpoint (/api/audio/transcode) would be needed — isolated here for that upgrade.
 export async function bhashiniASR(
   audioBlob: Blob,
   lang: string
 ): Promise<string> {
+  // Detect actual MIME type to set audioFormat correctly
+  const mimeType = audioBlob.type || "audio/webm";
+  // Bhashini audioFormat values: "wav", "mp3", "webm", "pcm"
+  let audioFormat = "webm";
+  if (mimeType.includes("wav")) audioFormat = "wav";
+  else if (mimeType.includes("mp3") || mimeType.includes("mpeg")) audioFormat = "mp3";
+  else if (mimeType.includes("ogg")) audioFormat = "webm"; // Ogg/Opus treated as webm
+
   // Convert blob to base64
   const arrayBuffer = await audioBlob.arrayBuffer();
   const uint8 = new Uint8Array(arrayBuffer);
@@ -79,8 +102,11 @@ export async function bhashiniASR(
         config: {
           language: { sourceLanguage: lang },
           serviceId,
-          audioFormat: "wav",
-          samplingRate: 16000,
+          audioFormat,
+          // samplingRate only required for raw PCM; omit for container formats
+          ...(audioFormat === "wav" || audioFormat === "pcm"
+            ? { samplingRate: 16000 }
+            : {}),
           postProcessors: null,
         },
       },
@@ -120,7 +146,9 @@ export async function bhashiniTTS(
           language: { sourceLanguage: lang },
           serviceId,
           gender,
-          samplingRate: 8000,
+          // 22050Hz is the minimum that AudioContext.decodeAudioData reliably handles
+          // across Chrome, Firefox, and Safari. 8000Hz causes decoding failures.
+          samplingRate: 22050,
         },
       },
     ],

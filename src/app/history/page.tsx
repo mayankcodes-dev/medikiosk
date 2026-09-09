@@ -211,7 +211,7 @@ export default function HistoryPage() {
   }
 
   const canSubmit = selectedChips.length > 0 || patientInput.trim().length > 1;
-  const chips = TOUCH_OPTIONS[stage] ?? COMMON_SYMPTOMS.slice(0, 8).map((s) => s.hi);
+  const chips = TOUCH_OPTIONS[stage] ?? COMMON_SYMPTOMS.slice(0, 8).map((s) => s.labelHi);
 
   // ── Complete screen ──────────────────────────────────────────
   if (isComplete) {

@@ -34,6 +34,7 @@ export default function ScanPage() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null); // base64
   const [capturedMime, setCapturedMime] = useState("image/jpeg");
   const [imagePreview, setImagePreview] = useState<string | null>(null); // object URL
+  const [fileName, setFileName] = useState("");
   const [extracted, setExtracted] = useState<ExtractedDoc | null>(null);
   const [extractError, setExtractError] = useState("");
   const [scannedDocs, setScannedDocs] = useState<ExtractedDoc[]>([]);
@@ -69,6 +70,7 @@ export default function ScanPage() {
       const file = e.target.files?.[0];
       if (!file) return;
 
+      setFileName(file.name);
       const preview = URL.createObjectURL(file);
       setImagePreview(preview);
       setCapturedMime(file.type || "image/jpeg");
@@ -279,11 +281,25 @@ export default function ScanPage() {
               animate={{ opacity: 1, scale: 1 }}
               className="w-full rounded-2xl overflow-hidden border-2 border-neutral-200 bg-neutral-100"
             >
-              <img
-                src={imagePreview}
-                alt="Document preview"
-                className="w-full max-h-72 object-contain"
-              />
+              {capturedMime.includes("pdf") ? (
+                <div className="p-8 flex flex-col items-center justify-center text-center bg-white">
+                  <div className="w-16 h-16 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-3xl mb-3 shadow-inner">
+                    📄
+                  </div>
+                  <p className="font-bold text-neutral-800 text-base max-w-xs truncate">
+                    {fileName || "Medical Document (PDF)"}
+                  </p>
+                  <span className="mt-1.5 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                    PDF Document Ready for OCR
+                  </span>
+                </div>
+              ) : (
+                <img
+                  src={imagePreview}
+                  alt="Document preview"
+                  className="w-full max-h-72 object-contain"
+                />
+              )}
             </motion.div>
           )}
 
