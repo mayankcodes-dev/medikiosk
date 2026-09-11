@@ -118,7 +118,31 @@ export default function SummaryPage() {
   async function handleSubmit() {
     setSubmitted(true);
     sessionStorage.setItem("mk_summary_submitted", "true");
-    await new Promise((r) => setTimeout(r, 600));
+
+    // Persist to Neon DB
+    try {
+      const historyRaw = sessionStorage.getItem("mk_history");
+      const docsRaw    = sessionStorage.getItem("mk_docs");
+      const consentRaw = sessionStorage.getItem("mk_consent");
+
+      await fetch("/api/session/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lang,
+          mode: sessionStorage.getItem("mk_mode") ?? "combined",
+          patient,
+          consent: consentRaw ? JSON.parse(consentRaw) : null,
+          history: historyRaw ? JSON.parse(historyRaw) : null,
+          docs: docsRaw ? JSON.parse(docsRaw) : [],
+        }),
+      });
+    } catch (e) {
+      // Non-fatal — session still proceeds to doctor screen
+      console.warn("[summary] DB save failed (non-fatal):", e);
+    }
+
+    await new Promise((r) => setTimeout(r, 400));
     router.push("/complete");
   }
 
