@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { motion, useInView } from "framer-motion";
 import { gsap } from "gsap";
@@ -84,6 +84,7 @@ const LANGS = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const heroTextRef = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     let lenis: import("lenis").default | null = null;
@@ -110,11 +111,11 @@ export default function LandingPage() {
       {/* ── NAV ─────────────────────────────────────────────────────────────── */}
       <header style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
-        background: "rgba(255,255,255,0.93)", backdropFilter: "blur(16px)",
+        background: "rgba(255,255,255,0.95)", backdropFilter: "blur(16px)",
         borderBottom: `1px solid ${C.border}`,
       }}>
         <div className="page-container" style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          {/* Logo + name */}
+          {/* Logo */}
           <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
             <Image src="/logo.jpg" alt="MediKiosk" width={36} height={36} style={{ borderRadius: 10, objectFit: "cover" }} />
             <span style={{ fontFamily: FONT, fontWeight: 800, fontSize: 18, letterSpacing: "-0.3px", color: C.black }}>
@@ -122,7 +123,7 @@ export default function LandingPage() {
             </span>
           </a>
 
-          {/* Nav links — hidden on mobile */}
+          {/* Nav links — desktop only */}
           <nav className="hide-mobile" style={{ display: "flex", gap: 32 }}>
             {["Features", "For Hospitals", "Languages"].map((item) => (
               <a key={item} href={`#${item.toLowerCase().replace(" ", "-")}`}
@@ -132,16 +133,54 @@ export default function LandingPage() {
             ))}
           </nav>
 
-          <div style={{ display: "flex", gap: 8 }}>
+          {/* CTA buttons — desktop */}
+          <div className="hide-mobile" style={{ display: "flex", gap: 8 }}>
             <a href={APP_URL} className="btn-login">Log In ›</a>
-            <a href={`${APP_URL}?pwa=install`} target="_blank" rel="noopener noreferrer" className="btn-download">
-              Download
+            <a href={APP_URL} target="_blank" rel="noopener noreferrer" className="btn-download">
+              Get the App
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M12 16l-4-4h3V4h2v8h3l-4 4z"/><path d="M4 20h16"/>
               </svg>
             </a>
           </div>
+
+          {/* Hamburger — mobile only */}
+          <button
+            className="show-mobile"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Toggle menu"
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              display: "none", flexDirection: "column", gap: 5, padding: 6,
+            }}>
+            <span style={{ display: "block", width: 22, height: 2, background: menuOpen ? C.blue : C.black, transition: "0.2s", transform: menuOpen ? "rotate(45deg) translate(5px,5px)" : "none" }} />
+            <span style={{ display: "block", width: 22, height: 2, background: menuOpen ? C.blue : C.black, transition: "0.2s", opacity: menuOpen ? 0 : 1 }} />
+            <span style={{ display: "block", width: 22, height: 2, background: menuOpen ? C.blue : C.black, transition: "0.2s", transform: menuOpen ? "rotate(-45deg) translate(5px,-5px)" : "none" }} />
+          </button>
         </div>
+
+        {/* Mobile dropdown menu */}
+        {menuOpen && (
+          <div style={{
+            position: "absolute", top: 64, left: 0, right: 0,
+            background: C.white, borderBottom: `1px solid ${C.border}`,
+            padding: "16px 24px 24px", display: "flex", flexDirection: "column", gap: 16,
+          }}>
+            {["Features", "For Hospitals", "Languages"].map((item) => (
+              <a key={item} href={`#${item.toLowerCase().replace(" ", "-")}`}
+                onClick={() => setMenuOpen(false)}
+                style={{ fontFamily: FONT, fontSize: 15, fontWeight: 600, color: C.black, textDecoration: "none" }}>
+                {item}
+              </a>
+            ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+              <a href={APP_URL} className="btn-login" style={{ textAlign: "center" }}>Log In ›</a>
+              <a href={APP_URL} target="_blank" rel="noopener noreferrer" className="btn-download" style={{ textAlign: "center" }}>
+                Get the App
+              </a>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* ── HERO — WhatsApp-style rounded card, one screen ──────────────────── */}
@@ -186,8 +225,8 @@ export default function LandingPage() {
               </p>
               <div className="btn-group" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <a href={APP_URL} className="btn-login btn-login-white">Log In ›</a>
-                <a href={`${APP_URL}?pwa=install`} target="_blank" rel="noopener noreferrer" className="btn-download">
-                  Download
+                <a href={APP_URL} target="_blank" rel="noopener noreferrer" className="btn-download">
+                  Get the App
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path d="M12 16l-4-4h3V4h2v8h3l-4 4z"/><path d="M4 20h16"/>
                   </svg>
@@ -213,20 +252,6 @@ export default function LandingPage() {
                   &ldquo;आपको क्या तकलीफ है?&rdquo;
                 </p>
               </div>
-            </motion.div>
-
-            {/* 22 langs badge — bottom right inside card */}
-            <motion.div className="hero-badge-bottom"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 1.3, duration: 0.5 }}
-              style={{
-                position: "absolute", bottom: 28, right: 36, zIndex: 3,
-                background: C.blue, borderRadius: 12,
-                padding: "9px 16px", display: "flex", alignItems: "center", gap: 8,
-              }}>
-              <span style={{ fontSize: 14 }}>🇮🇳</span>
-              <p style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: C.white }}>22 Languages</p>
             </motion.div>
           </div>
           {/* Footnote below card */}

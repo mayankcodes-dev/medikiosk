@@ -20,9 +20,12 @@ import type { KnowledgeDomain } from "@/lib/rag/knowledge-base";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 const LANG_NAMES: Record<string, string> = {
-  hi: "Hindi", en: "English", bn: "Bengali", ta: "Tamil",
-  te: "Telugu", mr: "Marathi", gu: "Gujarati", kn: "Kannada",
-  ml: "Malayalam", pa: "Punjabi", ur: "Urdu", or: "Odia", as: "Assamese",
+  hi: "Hindi",   en: "English",    bn: "Bengali",   ta: "Tamil",
+  te: "Telugu",  mr: "Marathi",    gu: "Gujarati",  kn: "Kannada",
+  ml: "Malayalam", pa: "Punjabi",  ur: "Urdu",      or: "Odia",
+  as: "Assamese", bo: "Bodo",      doi: "Dogri",    kok: "Konkani",
+  mai: "Maithili", mni: "Manipuri", ne: "Nepali",   sa: "Sanskrit",
+  sat: "Santali", sd: "Sindhi",    ks: "Kashmiri",  mni_mtei: "Meitei",
 };
 
 // ── Allopathic stages ────────────────────────────────────────────────────────
@@ -140,13 +143,18 @@ async function fetchRAGContext(
 }
 
 const LANG_SCRIPTS: Record<string, string> = {
-  hi: "हिंदी (Devanagari script)", en: "English", bn: "বাংলা (Bengali script)",
-  ta: "தமிழ் (Tamil script)", te: "తెలుగు (Telugu script)", mr: "मराठी (Devanagari)",
-  gu: "ગુજરાતી (Gujarati script)", kn: "ಕನ್ನಡ (Kannada script)",
-  ml: "മലയാളം (Malayalam script)", pa: "ਪੰਜਾਬੀ (Gurmukhi script)",
-  ur: "اردو (Nastaliq script)", or: "ଓଡ଼ିଆ (Odia script)", as: "অসমীয়া (Assamese script)",
-  bo: "བོད་སྐད། (Tibetan)", doi: "डोगरी", kok: "कोंकणी", mai: "मैथिली",
-  mni: "মণিপুরী", ne: "नेपाली", sa: "संस्कृत", sat: "ᱥᱟᱱᱛᱟᱲᱤ", sd: "سنڌي",
+  hi: "हिंदी (Devanagari)",    en: "English",
+  bn: "বাংলা (Bengali)",       ta: "தமிழ் (Tamil)",
+  te: "తెలుగు (Telugu)",        mr: "मराठी (Devanagari)",
+  gu: "ગુજરાતી (Gujarati)",    kn: "ಕನ್ನಡ (Kannada)",
+  ml: "മലയാളം (Malayalam)",    pa: "ਪੰਜਾਬੀ (Gurmukhi)",
+  ur: "اردو (Nastaliq)",        or: "ଓଡ଼ିଆ (Odia)",
+  as: "অসমীয়া (Assamese)",     bo: "བོད་སྐད། (Tibetan)",
+  doi: "डोगरी (Devanagari)",   kok: "कोंकणी (Devanagari)",
+  mai: "मैथिली (Devanagari)",  mni: "মণিপুরী (Bengali script)",
+  ne: "नेपाली (Devanagari)",   sa: "संस्कृत (Devanagari)",
+  sat: "ᱥᱟᱱᱛᱟᱲᱤ (Ol Chiki)", sd: "سنڌي (Khudawadi)",
+  ks: "کٲشُر (Nastaliq)",       mni_mtei: "ꯃꯤꯇꯩ (Meitei Mayek)",
 };
 
 function buildSystemPrompt(
