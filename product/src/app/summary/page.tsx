@@ -1,7 +1,4 @@
-// src/app/summary/page.tsx — MediKiosk AI Clinical Intake Record
-// Matches the clinical document format: patient info, HPI, documents table,
-// medical timeline, AI summary, red flags, consent, confidence score.
-
+// src/app/summary/page.tsx - MediKiosk AI Clinical Intake Record
 "use client";
 
 import { useEffect, useState } from "react";
@@ -35,13 +32,6 @@ const PLACEHOLDER_SUMMARY: StructuredSummary = {
   ayushNote: "",
 };
 
-const SEV_COLOR: Record<string, { bg: string; text: string; dot: string }> = {
-  mild:        { bg: "bg-green-100",  text: "text-green-800",  dot: "bg-green-500"  },
-  moderate:    { bg: "bg-amber-100",  text: "text-amber-800",  dot: "bg-amber-500"  },
-  severe:      { bg: "bg-red-100",    text: "text-red-800",    dot: "bg-red-500"    },
-  "very severe":{ bg: "bg-red-200",   text: "text-red-900",    dot: "bg-red-700"    },
-};
-
 function DocTypeLabel(type: string): string {
   const m: Record<string, string> = {
     prescription: "Prescription",
@@ -51,6 +41,31 @@ function DocTypeLabel(type: string): string {
     other: "Other Document",
   };
   return m[type] ?? type;
+}
+function DocTypeIcon(type: string): string {
+  return type === "prescription" ? "💊"
+    : type === "lab_report" ? "🧪"
+    : type === "xray_report" ? "🩻"
+    : type === "discharge_summary" ? "🏥" : "📄";
+}
+
+function SectionCard({ icon, label, value, mono = false }: { icon: string; label: string; value?: string; mono?: boolean }) {
+  if (!value || value === "—") return null;
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-white p-3">
+      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">{icon} {label}</p>
+      <p className={cn("text-xs text-neutral-700 leading-relaxed", mono && "font-mono text-brand-600")}>{value}</p>
+    </div>
+  );
+}
+
+function AyushRow({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="flex items-start gap-2 py-2 border-b border-neutral-100 last:border-0">
+      <span className="text-[10px] font-bold text-green-700 w-28 shrink-0 uppercase pt-0.5">{label}</span>
+      <span className="text-xs text-neutral-700 flex-1">{value ?? "Not assessed"}</span>
+    </div>
+  );
 }
 
 export default function SummaryPage() {
@@ -63,50 +78,41 @@ export default function SummaryPage() {
   const [isMock, setIsMock]       = useState(false);
   const [patient, setPatient]     = useState<Record<string, string>>({});
   const [intakeMode, setIntakeMode] = useState<string[]>([]);
+  const [isAyush, setIsAyush]     = useState(false);
 
   useEffect(() => {
     setLang(sessionStorage.getItem("mk_lang") ?? "hi");
+    setIsAyush(sessionStorage.getItem("mk_mode") === "ayush");
 
-    // Patient profile
     try {
-      const p = JSON.parse(sessionStorage.getItem("mk_patient") ?? "{}");
-      setPatient(p);
-    } catch { /* ignore */ }
+      setPatient(JSON.parse(sessionStorage.getItem("mk_patient") ?? "{}"));
+    } catch { /**/ }
 
-    // Intake modes
     const modes: string[] = [];
     if (sessionStorage.getItem("mk_history"))  modes.push("Voice");
     if (sessionStorage.getItem("mk_touch"))    modes.push("Touch");
     if (sessionStorage.getItem("mk_docs"))     modes.push("Document Scan");
     setIntakeMode(modes.length ? modes : ["Touch"]);
 
-    // Voice history summary
     const saved = sessionStorage.getItem("mk_history");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.summary?.chiefComplaint) {
-          setSummary(parsed.summary);
-          setIsMock(false);
-        } else {
-          setIsMock(true);
-        }
+        if (parsed.summary?.chiefComplaint) { setSummary(parsed.summary); setIsMock(false); }
+        else setIsMock(true);
       } catch { setIsMock(true); }
-    } else {
-      setIsMock(true);
-    }
+    } else { setIsMock(true); }
 
-    // Extracted docs
     const docsRaw = sessionStorage.getItem("mk_docs");
     if (docsRaw) {
       try {
-        const parsedDocs: ExtractedDoc[] = JSON.parse(docsRaw);
-        setDocs(Array.isArray(parsedDocs) ? parsedDocs : []);
-      } catch { /* ignore */ }
+        const d: ExtractedDoc[] = JSON.parse(docsRaw);
+        setDocs(Array.isArray(d) ? d : []);
+      } catch { /**/ }
     }
 
-    const t = setTimeout(() => setStatus("ready"), 2000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setStatus("ready"), 2200);
+    return () => clearTimeout(timer);
   }, []);
 
   async function handleSubmit() {
@@ -116,43 +122,23 @@ export default function SummaryPage() {
     router.push("/complete");
   }
 
-  function handlePrint() {
-    window.print();
-  }
-
-  // ── Generating spinner ─────────────────────────────────────────────────────
   if (status === "generating") {
     return (
       <KioskScreen>
         <KioskBody className="flex flex-col items-center justify-center gap-6 py-16">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-            className="h-14 w-14 rounded-full border-4 border-brand-100 border-t-brand-600"
-          />
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            className="h-14 w-14 rounded-full border-4 border-brand-100 border-t-brand-600" />
           <div className="text-center space-y-1">
-            <h2 className="text-xl font-bold text-neutral-900">
-              MediKiosk रिकॉर्ड बना रहा है…
-            </h2>
-            <p className="text-sm text-neutral-400">
-              MediKiosk is generating your clinical intake record
-            </p>
+            <h2 className="text-xl font-bold text-neutral-900">Clinical Record तैयार हो रहा है…</h2>
+            <p className="text-sm text-neutral-400">Generating your AI Clinical Intake Record</p>
           </div>
           <div className="text-left w-full max-w-xs space-y-2">
-            {[
-              "Organising symptoms…",
-              "Mapping ICD-10 codes…",
-              "Checking red flags…",
-              "Merging document data…",
-              "Generating clinical record…",
+            {["Organising symptoms…", "Mapping ICD-10 codes…",
+              isAyush ? "Computing Dashavidha Pariksha…" : "Checking red flags…",
+              "Merging document data…", "Generating clinical record…",
             ].map((step, i) => (
-              <motion.div
-                key={step}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.35 }}
-                className="flex items-center gap-2 text-sm text-neutral-500"
-              >
+              <motion.div key={step} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.38 }}
+                className="flex items-center gap-2 text-sm text-neutral-500">
                 <span className="text-brand-500">✓</span> {step}
               </motion.div>
             ))}
@@ -162,24 +148,25 @@ export default function SummaryPage() {
     );
   }
 
-  // ── Derived values ─────────────────────────────────────────────────────────
-  const sev       = SEV_COLOR[(summary.severity ?? "").toLowerCase()] ?? SEV_COLOR.moderate;
-  const redFlags  = summary.redFlags ?? [];
-  const abnormal  = docs.flatMap((d) => d.labValues?.filter((lv) => lv.flag === "H" || lv.flag === "L") ?? []);
-  const allMeds   = new Set(docs.flatMap((d) => d.medications?.map((m) => m.name) ?? []));
-  const allDx     = docs.flatMap((d) => d.diagnoses ?? []);
+  const redFlags = summary.redFlags ?? [];
+  const abnormal = docs.flatMap((d) => d.labValues?.filter((lv) => lv.flag === "H" || lv.flag === "L") ?? []);
+  const allMeds  = Array.from(new Set(docs.flatMap((d) => d.medications?.map((m) => m.name) ?? [])));
+  const allDx    = docs.flatMap((d) => d.diagnoses ?? []);
 
-  // Confidence score (heuristic)
   let confidence = 70;
   if (!isMock) confidence += 15;
   if (docs.length > 0) confidence += 8;
   if (redFlags.length === 0) confidence += 5;
+  if (isAyush && summary.prakriti) confidence += 4;
   confidence = Math.min(confidence, 98);
 
   const now = new Date().toLocaleDateString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
+  const patientAge = patient.yearOfBirth
+    ? `${new Date().getFullYear() - parseInt(patient.yearOfBirth)}y` : "";
+  const confColor = confidence >= 85 ? "bg-green-500" : confidence >= 70 ? "bg-amber-500" : "bg-red-500";
+  const confText  = confidence >= 85 ? "text-green-600" : confidence >= 70 ? "text-amber-600" : "text-red-600";
 
   return (
     <KioskScreen>
@@ -190,18 +177,21 @@ export default function SummaryPage() {
         progress={90}
         stepLabel="6 / 6"
       />
-
       <KioskBody className="space-y-3 pb-6">
 
-        {/* ── HEADER BAR ──────────────────────────────────────────── */}
+        {/* 1. HEADER BAR */}
         <div className="bg-brand-700 text-white rounded-2xl px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-brand-200 font-medium uppercase tracking-wide">MediKiosk</p>
-            <p className="font-bold text-base leading-tight">AI Clinical Intake Record</p>
-            <p className="text-xs text-brand-300 mt-0.5">{now}</p>
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.jpg" alt="MediKiosk" className="h-10 w-10 rounded-xl object-cover shrink-0 border-2 border-brand-500" />
+            <div>
+              <p className="text-[10px] text-brand-200 font-medium uppercase tracking-wide">MediKiosk</p>
+              <p className="font-bold text-base leading-tight">AI Clinical Intake Record</p>
+              <p className="text-[10px] text-brand-300 mt-0.5">{now}</p>
+            </div>
           </div>
-          <div className="text-right">
-            <span className="bg-amber-400 text-amber-900 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
+          <div className="text-right shrink-0">
+            <span className="bg-amber-400 text-amber-900 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide block">
               Pending Review
             </span>
             <p className="text-xs text-brand-300 mt-1.5">
@@ -210,164 +200,158 @@ export default function SummaryPage() {
           </div>
         </div>
 
-        {/* ── PATIENT INFO ─────────────────────────────────────────── */}
+        {/* 2. PATIENT CARD */}
         <div className="bg-neutral-50 rounded-2xl px-4 py-3 flex items-center gap-4 border border-neutral-200">
-          <div className="h-14 w-14 rounded-full bg-brand-100 flex items-center justify-center text-2xl shrink-0">
-            👤
-          </div>
+          <div className="h-14 w-14 rounded-full bg-brand-100 flex items-center justify-center text-2xl shrink-0">👤</div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-neutral-900 text-base truncate">
-              {patient.name ?? "Patient"}
-            </p>
+            <p className="font-bold text-neutral-900 text-base truncate">{patient.name ?? "Patient"}</p>
             {patient.abhaNumber && (
-              <p className="text-xs text-brand-600 font-mono mt-0.5">
-                ABHA: {patient.abhaNumber}
-              </p>
+              <p className="text-xs text-brand-600 font-mono mt-0.5">ABHA: {patient.abhaNumber}</p>
             )}
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-              {patient.gender && (
-                <span className="text-xs text-neutral-500 capitalize">{patient.gender}</span>
-              )}
-              {patient.yearOfBirth && (
-                <span className="text-xs text-neutral-500">
-                  Age {new Date().getFullYear() - parseInt(patient.yearOfBirth)}y
+              {patient.gender && <span className="text-xs text-neutral-500 capitalize">{patient.gender}</span>}
+              {patientAge && <span className="text-xs text-neutral-500">{patientAge}</span>}
+              <span className="text-xs text-neutral-500 uppercase">{lang}</span>
+              {isAyush && (
+                <span className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                  🌿 AYUSH Mode
                 </span>
               )}
-              <span className="text-xs text-neutral-500 uppercase">{lang}</span>
             </div>
           </div>
-          {/* Intake mode badges */}
           <div className="flex flex-col gap-1 shrink-0">
             {intakeMode.map((m) => (
-              <span key={m}
-                className="text-[10px] font-semibold bg-brand-50 text-brand-700 border border-brand-200 px-2 py-0.5 rounded-full">
+              <span key={m} className="text-[10px] font-semibold bg-brand-50 text-brand-700 border border-brand-200 px-2 py-0.5 rounded-full">
                 {m === "Voice" ? "🎤" : m === "Touch" ? "👆" : "📄"} {m}
               </span>
             ))}
           </div>
         </div>
 
-        {/* ── INCOMPLETE HISTORY BANNER ────────────────────────────── */}
         {isMock && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3">
             <span className="text-xl shrink-0">⚠️</span>
             <div>
               <p className="text-sm font-bold text-amber-800">Voice history not completed</p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                Document data below is still available to the doctor.
-              </p>
+              <p className="text-xs text-amber-700 mt-0.5">Document data below is still available to the doctor.</p>
             </div>
           </div>
         )}
 
-        {/* ── CHIEF COMPLAINT ──────────────────────────────────────── */}
+        {/* 3. HISTORY COLLECTED */}
         {!isMock && (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1">
-              🩺 Chief Complaint
-            </p>
-            <p className="font-bold text-neutral-900 text-sm leading-snug">
-              {summary.chiefComplaint}
-            </p>
-            <div className="flex items-center gap-2 mt-2">
-              {summary.severity && (
-                <span className={cn(
-                  "text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5",
-                  sev.bg, sev.text
-                )}>
-                  <span className={cn("h-2 w-2 rounded-full", sev.dot)} />
-                  {summary.severity} severity
+          <div className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
+            <div className="px-4 py-2.5 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+              <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                🩺 History Collected by MediKiosk
+              </p>
+              {summary.suggestedICD10 && (
+                <span className="text-[10px] font-mono text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full border border-brand-100">
+                  ICD-10: {summary.suggestedICD10}
                 </span>
               )}
-              {summary.duration && summary.duration !== "—" && (
-                <span className="text-xs text-neutral-500">⏱ {summary.duration}</span>
+            </div>
+            <div className="p-3 space-y-3">
+              {/* Chief Complaint */}
+              <div className="bg-brand-50 border border-brand-100 rounded-xl p-3">
+                <p className="text-[10px] font-bold text-brand-500 uppercase tracking-widest mb-1">Chief Complaint</p>
+                <p className="font-bold text-neutral-900 text-sm leading-snug">{summary.chiefComplaint}</p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {summary.severity && (
+                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full",
+                      summary.severity.toLowerCase().includes("severe")
+                        ? "bg-red-100 text-red-700"
+                        : summary.severity.toLowerCase() === "moderate"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-green-100 text-green-700"
+                    )}>
+                      {summary.severity} severity
+                    </span>
+                  )}
+                  {summary.duration && summary.duration !== "—" && (
+                    <span className="text-[10px] text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">
+                      ⏱ {summary.duration}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* HPI */}
+              {summary.hpi && summary.hpi !== "—" && (
+                <div>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1.5">📋 History of Present Illness</p>
+                  <p className="text-xs text-neutral-700 leading-relaxed">{summary.hpi}</p>
+                  {summary.character && summary.character !== "—" && (
+                    <p className="text-xs text-neutral-500 mt-1"><span className="font-semibold">Character:</span> {summary.character}</p>
+                  )}
+                  {(summary.associatedSymptoms?.length ?? 0) > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <span className="text-[10px] text-neutral-400 font-semibold mr-1">Associated:</span>
+                      {(summary.associatedSymptoms ?? []).map((s) => (
+                        <span key={s} className="text-[10px] bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-full">{s}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 2-col: Past History | Drug & Allergy */}
+              <div className="grid grid-cols-2 gap-2">
+                <SectionCard icon="🏥" label="Past History" value={summary.pastHistory} />
+                <SectionCard icon="💊" label="Drug / Allergy" value={summary.drugAllergy} />
+              </div>
+
+              {summary.currentMedications && summary.currentMedications !== "—" && (
+                <SectionCard icon="💉" label="Current Medications" value={summary.currentMedications} />
+              )}
+
+              {/* 2-col: Family | Personal */}
+              <div className="grid grid-cols-2 gap-2">
+                <SectionCard icon="👨‍👩‍👦" label="Family History" value={summary.familyHistory} />
+                <SectionCard icon="🧑" label="Personal History" value={summary.personalHistory} />
+              </div>
+
+              {summary.reviewOfSystems && summary.reviewOfSystems !== "—" && (
+                <SectionCard icon="🔍" label="Review of Systems" value={summary.reviewOfSystems} />
               )}
             </div>
-            {summary.character && summary.character !== "—" && (
-              <p className="text-xs text-neutral-600 mt-2 pt-2 border-t border-neutral-100">
-                <span className="font-semibold">Character:</span> {summary.character}
-              </p>
-            )}
           </div>
         )}
 
-        {/* ── HPI + CLINICAL SECTIONS ───────────────────────────────────── */}
-        {!isMock && (
-          <div className="space-y-2.5">
-            {/* HPI */}
-            {summary.hpi && summary.hpi !== "—" && (
-              <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                  📋 History of Present Illness
-                </p>
-                <p className="text-xs text-neutral-700 leading-snug">{summary.hpi}</p>
-              </div>
-            )}
-
-            {/* Drug / Allergy + Past History side-by-side */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                  💊 Drugs / Allergy
-                </p>
-                <p className="text-xs text-neutral-700 leading-snug">
-                  {summary.drugAllergy || "None reported"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                  🏥 Past History
-                </p>
-                <p className="text-xs text-neutral-700 leading-snug">
-                  {summary.pastHistory || "None reported"}
-                </p>
-                {summary.suggestedICD10 && (
-                  <p className="text-[10px] text-brand-600 font-mono mt-2">
-                    ICD-10: {summary.suggestedICD10}
-                  </p>
-                )}
+        {/* 4. AYUSH DASHAVIDHA PARIKSHA */}
+        {isAyush && !isMock && (
+          <div className="rounded-2xl border-2 border-green-200 bg-white overflow-hidden">
+            <div className="px-4 py-2.5 bg-green-50 border-b border-green-200 flex items-center gap-2">
+              <span className="text-base">🌿</span>
+              <div>
+                <p className="text-[10px] font-bold text-green-700 uppercase tracking-widest">AYUSH Dashavidha Pariksha</p>
+                <p className="text-[10px] text-green-600">Ten-fold Ayurvedic examination</p>
               </div>
             </div>
-
-            {/* Family History + Personal History side-by-side */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                  👨‍👩‍👦 Family History
-                </p>
-                <p className="text-xs text-neutral-700 leading-snug">
-                  {summary.familyHistory || "None reported"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                  🧑 Personal History
-                </p>
-                <p className="text-xs text-neutral-700 leading-snug">
-                  {summary.personalHistory || "None reported"}
-                </p>
-              </div>
+            <div className="p-3">
+              <AyushRow label="Prakriti" value={summary.prakriti} />
+              <AyushRow label="Vikriti" value={summary.vikriti} />
+              <AyushRow label="Agni" value={summary.agniType} />
+              <AyushRow label="Koshtha" value={summary.koshtha} />
+              <AyushRow label="Ahara-Vihara" value={summary.aharaVihara} />
+              <AyushRow label="Nidana" value={summary.nidana} />
+              <AyushRow label="Samprapti" value={summary.samprapti} />
+              {summary.ayushNote && (
+                <div className="mt-3 pt-3 border-t border-green-100">
+                  <p className="text-[10px] font-bold text-green-700 uppercase tracking-widest mb-1">Clinical Note</p>
+                  <p className="text-xs text-green-900 leading-relaxed">{summary.ayushNote}</p>
+                </div>
+              )}
             </div>
-
-            {/* Review of Systems */}
-            {summary.reviewOfSystems && summary.reviewOfSystems !== "—" && (
-              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                  🔍 Review of Systems
-                </p>
-                <p className="text-xs text-neutral-700 leading-snug">{summary.reviewOfSystems}</p>
-              </div>
-            )}
           </div>
         )}
 
-
-        {/* ── DOCUMENTS TABLE ──────────────────────────────────────── */}
+        {/* 5. DOCUMENTS TABLE */}
         {docs.length > 0 && (
           <div className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
             <div className="px-4 py-2.5 bg-neutral-50 border-b border-neutral-200">
               <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
-                📄 Documents Uploaded & Extracted ({docs.length})
+                📄 Documents Uploaded &amp; Extracted ({docs.length})
               </p>
             </div>
             <div className="divide-y divide-neutral-100">
@@ -375,40 +359,35 @@ export default function SummaryPage() {
                 const keyFindings = [
                   ...(doc.diagnoses?.slice(0, 2) ?? []),
                   ...(doc.medications?.slice(0, 2).map((m) => m.name) ?? []),
-                  ...(doc.labValues?.slice(0, 2).map((lv) => `${lv.test}: ${lv.value} ${lv.unit}`) ?? []),
-                ].slice(0, 3);
-
+                  ...(doc.labValues?.slice(0, 3).map((lv) => `${lv.test}: ${lv.value} ${lv.unit}${lv.flag ? ` (${lv.flag})` : ""}`) ?? []),
+                ].slice(0, 4);
                 return (
                   <div key={i} className="px-4 py-3 grid grid-cols-[auto_1fr_auto] gap-3 items-start">
-                    <div className="text-lg">
-                      {doc.docType === "prescription" ? "💊"
-                        : doc.docType === "lab_report" ? "🧪"
-                        : doc.docType === "xray_report" ? "🩻"
-                        : doc.docType === "discharge_summary" ? "🏥" : "📄"}
-                    </div>
+                    <span className="text-xl">{DocTypeIcon(doc.docType)}</span>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-neutral-800">{DocTypeLabel(doc.docType)}</p>
                       <p className="text-[10px] text-neutral-400 mt-0.5">
-                        {doc.date ?? "Date not found"} · {doc.hospitalName ?? "Scanned"}
+                        {doc.date ?? "Date not found"} · {doc.hospitalName ?? "Scanned document"}
                       </p>
-                      <div className="mt-1 space-y-0.5">
+                      <div className="mt-1.5 space-y-0.5">
                         {keyFindings.length > 0 ? keyFindings.map((f, j) => (
-                          <p key={j} className="text-[10px] text-neutral-600">• {f}</p>
+                          <p key={j} className={cn("text-[10px]",
+                            f.includes("(H)") ? "text-red-600 font-semibold"
+                              : f.includes("(L)") ? "text-blue-600 font-semibold"
+                              : "text-neutral-600"
+                          )}>• {f}</p>
                         )) : (
                           <p className="text-[10px] text-neutral-400 italic">No key findings extracted</p>
                         )}
                       </div>
                     </div>
-                    <div>
-                      <span className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                        doc.confidence === "high" ? "bg-green-100 text-green-700"
-                          : doc.confidence === "medium" ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-700"
-                      )}>
-                        {doc.confidence === "high" ? "High" : doc.confidence === "medium" ? "Med" : "Low"}
-                      </span>
-                    </div>
+                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0",
+                      doc.confidence === "high" ? "bg-green-100 text-green-700"
+                        : doc.confidence === "medium" ? "bg-amber-100 text-amber-700"
+                        : "bg-red-100 text-red-700"
+                    )}>
+                      {doc.confidence === "high" ? "High" : doc.confidence === "medium" ? "Med" : "Low"}
+                    </span>
                   </div>
                 );
               })}
@@ -416,33 +395,27 @@ export default function SummaryPage() {
           </div>
         )}
 
-        {/* ── MEDICAL TIMELINE ─────────────────────────────────────── */}
+        {/* 6. MEDICAL TIMELINE */}
         {(allDx.length > 0 || abnormal.length > 0) && (
           <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-3">
-              📅 Medical Timeline
-            </p>
-            <div className="relative pl-4">
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-3">📅 Medical Timeline</p>
+            <div className="relative pl-5">
               <div className="absolute left-1.5 top-0 bottom-0 w-0.5 bg-neutral-200" />
               {allDx.map((dx, i) => (
-                <div key={i} className="relative mb-2 last:mb-0">
-                  <div className="absolute -left-3 top-1 h-2.5 w-2.5 rounded-full bg-brand-500 border-2 border-white" />
+                <div key={i} className="relative mb-3 last:mb-0">
+                  <div className="absolute -left-3.5 top-1 h-3 w-3 rounded-full bg-brand-500 border-2 border-white" />
                   <p className="text-xs text-neutral-700 font-medium">{dx}</p>
                   <p className="text-[10px] text-neutral-400">From uploaded document</p>
                 </div>
               ))}
               {abnormal.map((lv, i) => (
-                <div key={`lv-${i}`} className="relative mb-2 last:mb-0">
-                  <div className={cn(
-                    "absolute -left-3 top-1 h-2.5 w-2.5 rounded-full border-2 border-white",
+                <div key={`lv-${i}`} className="relative mb-3 last:mb-0">
+                  <div className={cn("absolute -left-3.5 top-1 h-3 w-3 rounded-full border-2 border-white",
                     lv.flag === "H" ? "bg-red-500" : "bg-blue-500"
                   )} />
                   <p className="text-xs font-medium text-neutral-800">
                     {lv.test}: {lv.value} {lv.unit}
-                    <span className={cn(
-                      "ml-1.5 text-[10px] font-bold",
-                      lv.flag === "H" ? "text-red-600" : "text-blue-600"
-                    )}>
+                    <span className={cn("ml-1.5 text-[10px] font-bold", lv.flag === "H" ? "text-red-600" : "text-blue-600")}>
                       [{lv.flag === "H" ? "↑ HIGH" : "↓ LOW"}]
                     </span>
                   </p>
@@ -453,56 +426,63 @@ export default function SummaryPage() {
           </div>
         )}
 
-        {/* ── AI GENERATED SUMMARY ─────────────────────────────────── */}
+        {/* 7. AI GENERATED SUMMARY */}
         <div className="rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/40 p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] font-bold text-brand-600 uppercase tracking-widest flex items-center gap-1.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.jpg" alt="MediKiosk" className="h-4 w-4 rounded-full object-cover" />
+              <img src="/logo.jpg" alt="" className="h-4 w-4 rounded-full object-cover" />
               AI Generated Summary (For Physician)
             </p>
-            <span className="text-[10px] bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full font-semibold">
-              DRAFT
-            </span>
+            <span className="text-[10px] bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full font-semibold">DRAFT</span>
           </div>
           <p className="text-xs text-neutral-700 leading-relaxed">
             {!isMock
-              ? `Patient presents with ${summary.chiefComplaint?.toLowerCase()}. ` +
-                (summary.hpi && summary.hpi !== "—" ? summary.hpi : "") +
-                (summary.pastHistory && summary.pastHistory !== "—"
-                  ? ` PMH: ${summary.pastHistory}.` : "") +
-                (summary.drugAllergy && summary.drugAllergy !== "—"
-                  ? ` Medications/Allergies: ${summary.drugAllergy}.` : "") +
-                ((summary.associatedSymptoms?.length ?? 0) > 0
-                  ? ` Associated: ${(summary.associatedSymptoms ?? []).join(", ")}.` : "")
-              : "Voice history not recorded. Please review document extracts below."}
+              ? `Patient${patient.name ? ` ${patient.name}` : ""}${patientAge ? ` (${patientAge})` : ""} presents with ${summary.chiefComplaint?.toLowerCase()}. `
+                + (summary.hpi && summary.hpi !== "—" ? summary.hpi + " " : "")
+                + (summary.pastHistory && summary.pastHistory !== "—" ? `PMHx: ${summary.pastHistory}. ` : "")
+                + (summary.drugAllergy && summary.drugAllergy !== "—" ? `Medications/Allergies: ${summary.drugAllergy}. ` : "")
+                + (summary.familyHistory && summary.familyHistory !== "—" ? `FHx: ${summary.familyHistory}. ` : "")
+                + ((summary.associatedSymptoms?.length ?? 0) > 0 ? `Associated: ${(summary.associatedSymptoms ?? []).join(", ")}.` : "")
+              : "Voice history not recorded. Please review document extracts and proceed with clinical assessment."}
           </p>
-          {summary.ayushNote && (
+          {!isAyush && summary.ayushNote && (
             <div className="mt-2 pt-2 border-t border-brand-100">
-              <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-0.5">
-                🌿 AYUSH Note
-              </p>
+              <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-0.5">🌿 AYUSH Note</p>
               <p className="text-xs text-green-900">{summary.ayushNote}</p>
             </div>
           )}
+          {allMeds.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-brand-100">
+              <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest mb-1.5">💊 Medication (Current — from documents)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {allMeds.map((med) => (
+                  <span key={med} className="text-[10px] bg-white text-brand-700 border border-brand-100 px-2 py-0.5 rounded-full font-medium">{med}</span>
+                ))}
+              </div>
+            </div>
+          )}
           <p className="text-[10px] text-brand-400 mt-2 italic">
-            ⚠ AI-generated draft — must be verified by the physician before clinical use
+            ⚠ AI-generated draft — must be verified by physician before clinical use
           </p>
         </div>
 
-        {/* ── RED FLAG CHECK ───────────────────────────────────────── */}
-        <div className={cn(
-          "rounded-2xl border p-4",
-          redFlags.length > 0
-            ? "bg-red-50 border-red-200"
-            : "bg-green-50 border-green-200"
+        {/* 8. RED FLAG CHECK */}
+        <div className={cn("rounded-2xl border p-4",
+          redFlags.length > 0 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"
         )}>
-          <p className={cn(
-            "text-[10px] font-bold uppercase tracking-widest mb-2",
-            redFlags.length > 0 ? "text-red-600" : "text-green-700"
-          )}>
-            🚨 Red Flag Check
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className={cn("text-[10px] font-bold uppercase tracking-widest",
+              redFlags.length > 0 ? "text-red-600" : "text-green-700"
+            )}>🚨 Red Flag Check</p>
+            <span className={cn("text-[10px] font-bold px-2.5 py-0.5 rounded-full",
+              redFlags.length > 1 ? "bg-red-600 text-white"
+                : redFlags.length === 1 ? "bg-amber-500 text-white"
+                : "bg-green-600 text-white"
+            )}>
+              {redFlags.length > 1 ? "HIGH RISK" : redFlags.length === 1 ? "MODERATE" : "Low Risk"}
+            </span>
+          </div>
           {redFlags.length > 0 ? (
             <div className="space-y-1.5">
               {redFlags.map((f) => (
@@ -513,105 +493,58 @@ export default function SummaryPage() {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-green-700 flex items-center gap-2">
-              <span>✅</span> No red flags detected
-            </p>
+            <p className="text-xs text-green-700 flex items-center gap-2"><span>✅</span> No red flags detected — routine consultation</p>
           )}
-          <p className="text-[10px] text-neutral-400 mt-2">
-            Overall Risk: <span className={cn(
-              "font-bold",
-              redFlags.length > 1 ? "text-red-600" : redFlags.length === 1 ? "text-amber-600" : "text-green-600"
-            )}>
-              {redFlags.length > 1 ? "HIGH" : redFlags.length === 1 ? "MODERATE" : "LOW"}
-            </span>
-          </p>
         </div>
 
-        {/* ── MEDICATIONS FROM DOCS ────────────────────────────────── */}
-        {allMeds.size > 0 && (
-          <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-              💊 Medication (Current)
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {Array.from(allMeds).map((med) => (
-                <span key={med}
-                  className="text-xs bg-brand-50 text-brand-700 border border-brand-100 px-2.5 py-1 rounded-full font-medium">
-                  {med}
-                </span>
+        {/* 9. PATIENT CONSENT + CONFIDENCE */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-3">
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">🔒 Patient Consent</p>
+            <div className="space-y-1">
+              {["Shared with treating physician only", "ABDM / DPDP 2023 compliant", "No raw Aadhaar stored"].map((c) => (
+                <p key={c} className="text-[10px] text-neutral-600 flex items-start gap-1.5">
+                  <span className="text-green-500 shrink-0 mt-0.5">✓</span> {c}
+                </p>
               ))}
             </div>
           </div>
-        )}
-
-        {/* ── PATIENT CONSENT ──────────────────────────────────────── */}
-        <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-          <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-            🔒 Patient Consent
-          </p>
-          <div className="space-y-1">
-            {[
-              "Data shared only with treating physician",
-              "ABDM / DPDP Act 2023 compliant",
-              "No raw Aadhaar stored",
-            ].map((c) => (
-              <p key={c} className="text-xs text-neutral-600 flex items-center gap-2">
-                <span className="text-green-500 shrink-0">✓</span> {c}
-              </p>
-            ))}
+          <div className="rounded-2xl border border-neutral-200 bg-white p-3 flex flex-col items-center justify-center gap-1">
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest text-center">AI Confidence</p>
+            <p className={cn("text-3xl font-black", confText)}>{confidence}%</p>
+            <div className="w-full bg-neutral-100 rounded-full h-2">
+              <div className={cn("h-2 rounded-full transition-all duration-1000", confColor)} style={{ width: `${confidence}%` }} />
+            </div>
+            <p className="text-[9px] text-neutral-400 text-center leading-tight">
+              Based on history completeness + document quality
+            </p>
           </div>
         </div>
 
-        {/* ── CONFIDENCE SCORE BAR ─────────────────────────────────── */}
-        <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-              AI Confidence Overall Record
-            </p>
-            <p className={cn(
-              "text-2xl font-black",
-              confidence >= 85 ? "text-green-600" : confidence >= 70 ? "text-amber-600" : "text-red-600"
-            )}>
-              {confidence}%
+        {/* Next for physician */}
+        <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-3 flex items-center gap-3">
+          <span className="text-2xl shrink-0">👨‍⚕️</span>
+          <div>
+            <p className="text-xs font-bold text-neutral-700">Next for Physician</p>
+            <p className="text-[10px] text-neutral-400 mt-0.5">
+              This record will appear on your doctor&apos;s screen.
+              {redFlags.length > 0 && " ⚠ Red flags detected — priority review recommended."}
             </p>
           </div>
-          <div className="w-full bg-neutral-100 rounded-full h-2.5">
-            <div
-              className={cn(
-                "h-2.5 rounded-full transition-all duration-1000",
-                confidence >= 85 ? "bg-green-500" : confidence >= 70 ? "bg-amber-500" : "bg-red-500"
-              )}
-              style={{ width: `${confidence}%` }}
-            />
-          </div>
-          <p className="text-[10px] text-neutral-400 mt-1.5">
-            Based on voice history completeness + document quality
-          </p>
         </div>
 
-        {/* Print */}
-        <button
-          onClick={handlePrint}
-          className="w-full border border-neutral-200 text-neutral-500 text-sm font-semibold
-                     py-2.5 rounded-2xl hover:bg-neutral-50 transition-colors flex items-center
-                     justify-center gap-2"
-        >
+        <button onClick={() => window.print()}
+          className="w-full border border-neutral-200 text-neutral-500 text-sm font-semibold py-2.5 rounded-2xl hover:bg-neutral-50 transition-colors flex items-center justify-center gap-2">
           🖨️ Print Clinical Record
         </button>
 
         <p className="text-[10px] text-neutral-400 text-center pb-2">
-          🔒 Encrypted · Shared only with your treating doctor today · ABDM Compliant
+          🔒 Encrypted · Shared only with treating doctor · ABDM Compliant
         </p>
       </KioskBody>
 
       <KioskFooter>
-        <Button
-          variant="primary"
-          size="xl"
-          fullWidth
-          loading={submitted}
-          onClick={handleSubmit}
-        >
+        <Button variant="primary" size="xl" fullWidth loading={submitted} onClick={handleSubmit}>
           {submitted ? "Submitting…" : `✅ ${t(lang, "submitToDoctor")}`}
         </Button>
       </KioskFooter>

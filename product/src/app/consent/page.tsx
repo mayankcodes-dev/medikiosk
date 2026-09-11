@@ -70,6 +70,7 @@ export default function ConsentPage() {
     abhaLink: false,
     audioRecording: false,
   });
+  const [mode, setMode] = useState<"allopathic" | "ayush">("allopathic");
   const [audioPlaying, setAudioPlaying] = useState(false);
 
   useEffect(() => {
@@ -86,6 +87,7 @@ export default function ConsentPage() {
 
   function handleProceed() {
     sessionStorage.setItem("mk_consent", JSON.stringify(checked));
+    sessionStorage.setItem("mk_mode", mode);
     router.push("/history");
   }
 
@@ -137,6 +139,47 @@ export default function ConsentPage() {
                   consent framework. Session data deleted after you leave.
                 </p>
               </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── Interview Mode Selector ── */}
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+          <div className="rounded-2xl border-2 border-neutral-200 bg-white overflow-hidden">
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest px-4 pt-3 pb-2">
+              🩺 Interview Mode — Choose your health system
+            </p>
+            <div className="grid grid-cols-2 gap-0 divide-x divide-neutral-200 border-t border-neutral-200">
+              <button
+                onClick={() => setMode("allopathic")}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 py-3 px-2 transition-all text-center",
+                  mode === "allopathic"
+                    ? "bg-brand-600 text-white"
+                    : "bg-white text-neutral-600 hover:bg-neutral-50"
+                )}
+              >
+                <span className="text-xl">🏥</span>
+                <p className="text-xs font-bold leading-tight">Standard</p>
+                <p className={cn("text-[10px] leading-tight", mode === "allopathic" ? "text-brand-200" : "text-neutral-400")}>
+                  Allopathic · Chief Complaint → ROS
+                </p>
+              </button>
+              <button
+                onClick={() => setMode("ayush")}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 py-3 px-2 transition-all text-center",
+                  mode === "ayush"
+                    ? "bg-green-600 text-white"
+                    : "bg-white text-neutral-600 hover:bg-neutral-50"
+                )}
+              >
+                <span className="text-xl">🌿</span>
+                <p className="text-xs font-bold leading-tight">AYUSH</p>
+                <p className={cn("text-[10px] leading-tight", mode === "ayush" ? "text-green-200" : "text-neutral-400")}>
+                  Dashavidha Pariksha · Prakriti → Samprapti
+                </p>
+              </button>
             </div>
           </div>
         </motion.div>

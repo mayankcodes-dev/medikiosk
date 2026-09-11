@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { COMMON_SYMPTOMS } from "@/lib/constants";
 import { t } from "@/lib/translations";
 import { useVoiceSession } from "@/hooks/useVoiceSession";
-import type { ChatMessage, StructuredSummary } from "@/app/api/history/chat/route";
+import type { ChatMessage, StructuredSummary, InterviewMode } from "@/app/api/history/chat/route";
 
 type Stage =
   | "chief_complaint" | "hpi"
@@ -25,10 +25,18 @@ type Stage =
   | "ayush_koshtha" | "ayush_ahara_vihara" | "ayush_nidana" | "ayush_samprapti"
   | "summary";
 
-const STAGES: Stage[] = [
+const ALLOPATHIC_STAGES: Stage[] = [
   "chief_complaint", "hpi",
   "past_history", "drug_allergy",
   "family_history", "personal_history", "review_of_systems",
+];
+
+const AYUSH_STAGES: Stage[] = [
+  "chief_complaint", "hpi",
+  "past_history", "drug_allergy",
+  "family_history", "personal_history", "review_of_systems",
+  "ayush_prakriti", "ayush_vikriti", "ayush_agni",
+  "ayush_koshtha", "ayush_ahara_vihara", "ayush_nidana", "ayush_samprapti",
 ];
 
 // Multilingual stage labels
@@ -167,6 +175,7 @@ const TOUCH_OPTIONS: Partial<Record<Stage, string[]>> = {
 export default function HistoryPage() {
   const router = useRouter();
   const [lang, setLang] = useState("hi");
+  const [interviewMode, setInterviewMode] = useState<InterviewMode>("allopathic");
   const [stage, setStage] = useState<Stage>("chief_complaint");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
@@ -179,22 +188,25 @@ export default function HistoryPage() {
   const [voiceError, setVoiceError] = useState("");
   const hasAskedFirst = useRef(false);
 
+  // Dynamic stage list depends on mode
+  const STAGES = interviewMode === "ayush" ? AYUSH_STAGES : ALLOPATHIC_STAGES;
   const stageIndex = STAGES.indexOf(stage);
   const progress = Math.round(((stageIndex + 1) / (STAGES.length + 1)) * 80) + 5;
 
   // ── Read sessionStorage + kick off first question ─────────────
   useEffect(() => {
     const savedLang = sessionStorage.getItem("mk_lang") ?? "hi";
+    const savedMode = (sessionStorage.getItem("mk_mode") ?? "allopathic") as InterviewMode;
     setLang(savedLang);
-    // Fetch first question with the CORRECT language immediately
+    setInterviewMode(savedMode);
+    // Fetch first question with the CORRECT language + mode immediately
     if (!hasAskedFirst.current) {
       hasAskedFirst.current = true;
-      // POST directly to bypass stale lang state
       setAiLoading(true);
       fetch("/api/history/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lang: savedLang, messages: [], stage: "chief_complaint" }),
+        body: JSON.stringify({ lang: savedLang, messages: [], stage: "chief_complaint", mode: savedMode }),
       })
         .then((r) => r.json())
         .then((data) => {
@@ -202,7 +214,6 @@ export default function HistoryPage() {
           setAiLoading(false);
         })
         .catch(() => {
-          // Offline fallback
           const FIRST_Q: Record<string, string> = {
             hi: "आज आपको मुख्य रूप से क्या तकलीफ है?",
             en: "What is your main problem today?",
@@ -248,7 +259,7 @@ export default function HistoryPage() {
         const res = await fetch("/api/history/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lang, messages: history, stage: forStage }),
+          body: JSON.stringify({ lang, messages: history, stage: forStage, mode: interviewMode }),
         });
         const data = await res.json();
         if (data.isComplete && data.structuredSummary) {
