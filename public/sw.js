@@ -1,76 +1,109 @@
 // public/sw.js
-// MediKiosk Service Worker — offline support + asset caching
-// Strategy: Cache-First for static assets, Network-First for API routes
+// MediKiosk Progressive Web App Service Worker
+// Strategy:
+//   - Static assets (_next/static/*, images, fonts): Cache-First
+//   - API routes (/api/*): Network-First with offline fallback JSON
+//   - HTML pages: Network-First with offline page fallback
+//
+// NOTE on offline ASR/TTS:
+//   Bhashini ASR/TTS requires network. When offline, the UI falls back to
+//   touch-only mode and browser SpeechSynthesis (via useOfflineStatus hook).
+//   Sherpa-onnx / CTranslate2 local inference requires native binaries in a
+//   separate edge container — NOT implemented in this service worker.
 
-const CACHE_NAME = "medikiosk-v1";
-const OFFLINE_URL = "/";
+const CACHE_NAME = "medikiosk-v2";
+const OFFLINE_PAGE = "/offline.html";
 
-// ── Assets to pre-cache on install ───────────────────────────────
-const PRECACHE_ASSETS = [
-  "/",
-  "/login",
-  "/consent",
-  "/history",
-  "/scan",
-  "/summary",
-  "/complete",
-  "/logo.jpg",
-  "/manifest.json",
+const STATIC_PATTERNS = [
+  /^\/_next\/static\//,
+  /\.(?:woff2?|ttf|otf|eot)$/,
+  /\.(?:png|jpg|jpeg|webp|avif|svg|ico)$/,
 ];
 
-// ── Install: pre-cache all static pages ──────────────────────────
+// These routes are never cached — always pass through to network
+const NEVER_CACHE = [
+  "/api/health",
+  "/api/queue/list", // SSE stream
+];
+
+// ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn("[SW] Pre-cache partial failure (ok in dev):", err);
-      });
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(["/", "/manifest.json"]).catch(() => {})
+    )
   );
+  self.skipWaiting();
 });
 
-// ── Activate: clean old caches ────────────────────────────────────
+// ── Activate: purge old caches ────────────────────────────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    )
   );
+  self.clients.claim();
 });
 
-// ── Fetch: strategy depends on request type ───────────────────────
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip: non-GET, external, API routes (always need fresh data)
-  if (
-    request.method !== "GET" ||
-    url.origin !== self.location.origin ||
-    url.pathname.startsWith("/api/")
-  ) {
+  if (request.method !== "GET") return;
+  if (url.origin !== self.location.origin) return;
+  if (NEVER_CACHE.some((p) => url.pathname.startsWith(p))) return;
+
+  // Static assets — Cache-First
+  if (STATIC_PATTERNS.some((p) => p.test(url.pathname))) {
+    event.respondWith(cacheFirst(request));
     return;
   }
 
-  // Static assets: Cache-First
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
+  // API routes — Network-First, 503 JSON when offline
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(networkFirstAPI(request));
+    return;
+  }
 
-      return fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          // Offline fallback — show home page
-          return caches.match(OFFLINE_URL) ?? new Response("Offline", { status: 503 });
-        });
-    })
-  );
+  // HTML pages — Network-First with offline fallback
+  event.respondWith(networkFirstPage(request));
 });
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(CACHE_NAME);
+    cache.put(request, response.clone());
+  }
+  return response;
+}
+
+async function networkFirstAPI(request) {
+  try {
+    return await fetch(request);
+  } catch {
+    return new Response(
+      JSON.stringify({ error: "offline", message: "No network connection" }),
+      { status: 503, headers: { "Content-Type": "application/json" } }
+    );
+  }
+}
+
+async function networkFirstPage(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return caches.match("/") ?? new Response("Offline", { status: 503 });
+  }
+}

@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 
 // ─── KioskHeader ────────────────────────────────────────────────
 interface KioskHeaderProps {
@@ -100,6 +101,8 @@ export function KioskScreen({
   className,
   centered,
 }: KioskScreenProps) {
+  const { isOnline, checked } = useOfflineStatus();
+
   return (
     <motion.main
       initial={{ opacity: 0, y: 10 }}
@@ -112,10 +115,27 @@ export function KioskScreen({
         className
       )}
     >
+      {/* Offline banner — shown only when probe confirms no connectivity */}
+      {checked && !isOnline && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="w-full bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 text-sm text-amber-800"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M1 6s4-4 11-4 11 4 11 4" /><path d="M5 10s2.5-2 7-2 7 2 7 2" /><line x1="12" y1="20" x2="12.01" y2="20" /><line x1="1" y1="1" x2="23" y2="23" />
+          </svg>
+          <span>
+            <strong>ऑफ़लाइन / Offline</strong> — आवाज़ सुविधा बंद है। टच करके जवाब दें।
+            &nbsp;/&nbsp;Voice unavailable. Please use touch to answer.
+          </span>
+        </div>
+      )}
       {children}
     </motion.main>
   );
 }
+
 
 // ─── KioskBody — Scrollable content area ────────────────────────
 export function KioskBody({

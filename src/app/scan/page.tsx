@@ -323,7 +323,7 @@ export default function ScanPage() {
 
         <KioskFooter className="space-y-2">
           <Button variant="primary" size="xl" fullWidth onClick={handleExtract}>
-            🤖 AI से पढ़ें · Extract with AI
+            🤖 MediKiosk से पढ़ें · Extract with MediKiosk AI
           </Button>
           <Button
             variant="ghost"
@@ -351,8 +351,8 @@ export default function ScanPage() {
             className="h-16 w-16 rounded-full border-4 border-brand-100 border-t-brand-600"
           />
           <div className="text-center space-y-1">
-            <h2 className="text-xl font-bold text-neutral-900">AI पढ़ रहा है…</h2>
-            <p className="text-sm text-neutral-400">Gemini is reading your document</p>
+            <h2 className="text-xl font-bold text-neutral-900">MediKiosk पढ़ रहा है…</h2>
+            <p className="text-sm text-neutral-400">MediKiosk AI is reading your document</p>
           </div>
           <div className="text-left w-full max-w-xs space-y-2">
             {[
@@ -391,6 +391,30 @@ export default function ScanPage() {
           stepLabel="5 / 6"
         />
         <KioskBody className="space-y-3">
+          {/* ── MediKiosk Document Read Confirmation ── */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            className="flex items-center gap-3 bg-brand-600 text-white rounded-2xl px-4 py-3 shadow-sm"
+          >
+            <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center text-xl shrink-0">
+              🤖
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-sm leading-tight">
+                MediKiosk ने दस्तावेज़ पढ़ लिया है ✓
+              </p>
+              <p className="text-xs text-white/75 mt-0.5">
+                Document successfully read by MediKiosk AI
+              </p>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/70 shrink-0">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </motion.div>
+
           {/* Confidence badge */}
           <div className={cn(
             "flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold",

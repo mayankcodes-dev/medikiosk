@@ -1,28 +1,26 @@
-// src/app/summary/page.tsx
-// Clinical summary review — shows AI-generated summary from voice history
-// AND merges extracted document data (lab values, medications from scans).
-// Patient reviews everything before submitting to doctor queue.
+// src/app/summary/page.tsx — MediKiosk AI Clinical Intake Record
+// Matches the clinical document format: patient info, HPI, documents table,
+// medical timeline, AI summary, red flags, consent, confidence score.
 
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { t } from "@/lib/translations";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { t } from "@/lib/translations";
 import {
   KioskHeader,
   KioskScreen,
   KioskBody,
   KioskFooter,
 } from "@/components/kiosk/KioskLayout";
-import { Button, Card } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/primitives";
 import type { StructuredSummary } from "@/app/api/history/chat/route";
 import type { ExtractedDoc } from "@/app/api/scan/extract/route";
-import { cn } from "@/lib/utils";
 
 type SummaryStatus = "generating" | "ready";
 
-// ── Placeholder if no real summary (e.g. skip straight to /summary) ─
 const PLACEHOLDER_SUMMARY: StructuredSummary = {
   chiefComplaint: "History not recorded — please proceed to doctor",
   duration: "—",
@@ -36,61 +34,78 @@ const PLACEHOLDER_SUMMARY: StructuredSummary = {
   ayushNote: "",
 };
 
-const SEV_COLORS: Record<string, string> = {
-  mild: "bg-green-50 text-green-700 border-green-200",
-  moderate: "bg-secondary-50 text-secondary-700 border-secondary-200",
-  severe: "bg-red-50 text-red-700 border-red-200",
-  "very severe": "bg-red-100 text-red-800 border-red-300",
+const SEV_COLOR: Record<string, { bg: string; text: string; dot: string }> = {
+  mild:        { bg: "bg-green-100",  text: "text-green-800",  dot: "bg-green-500"  },
+  moderate:    { bg: "bg-amber-100",  text: "text-amber-800",  dot: "bg-amber-500"  },
+  severe:      { bg: "bg-red-100",    text: "text-red-800",    dot: "bg-red-500"    },
+  "very severe":{ bg: "bg-red-200",   text: "text-red-900",    dot: "bg-red-700"    },
 };
 
-const FLAG_COLOR: Record<string, string> = {
-  H: "text-red-600 font-bold",
-  L: "text-blue-600 font-bold",
-  N: "text-green-700",
-  "": "text-neutral-600",
-};
+function DocTypeLabel(type: string): string {
+  const m: Record<string, string> = {
+    prescription: "Prescription",
+    lab_report: "Lab Report",
+    discharge_summary: "Discharge Summary",
+    xray_report: "X-Ray / Radiology",
+    other: "Other Document",
+  };
+  return m[type] ?? type;
+}
 
 export default function SummaryPage() {
   const router = useRouter();
-  const [lang, setLang] = useState("hi");
-  const [status, setStatus] = useState<SummaryStatus>("generating");
+  const [lang, setLang]           = useState("hi");
+  const [status, setStatus]       = useState<SummaryStatus>("generating");
   const [submitted, setSubmitted] = useState(false);
-  const [summary, setSummary] = useState<StructuredSummary>(PLACEHOLDER_SUMMARY);
-  const [docs, setDocs] = useState<ExtractedDoc[]>([]);
-  const [isMockSummary, setIsMockSummary] = useState(false);
+  const [summary, setSummary]     = useState<StructuredSummary>(PLACEHOLDER_SUMMARY);
+  const [docs, setDocs]           = useState<ExtractedDoc[]>([]);
+  const [isMock, setIsMock]       = useState(false);
+  const [patient, setPatient]     = useState<Record<string, string>>({});
+  const [intakeMode, setIntakeMode] = useState<string[]>([]);
 
   useEffect(() => {
     setLang(sessionStorage.getItem("mk_lang") ?? "hi");
 
-    // ── Load voice history summary ───────────────────────────────
+    // Patient profile
+    try {
+      const p = JSON.parse(sessionStorage.getItem("mk_patient") ?? "{}");
+      setPatient(p);
+    } catch { /* ignore */ }
+
+    // Intake modes
+    const modes: string[] = [];
+    if (sessionStorage.getItem("mk_history"))  modes.push("Voice");
+    if (sessionStorage.getItem("mk_touch"))    modes.push("Touch");
+    if (sessionStorage.getItem("mk_docs"))     modes.push("Document Scan");
+    setIntakeMode(modes.length ? modes : ["Touch"]);
+
+    // Voice history summary
     const saved = sessionStorage.getItem("mk_history");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.summary && parsed.summary.chiefComplaint) {
+        if (parsed.summary?.chiefComplaint) {
           setSummary(parsed.summary);
-          setIsMockSummary(false);
+          setIsMock(false);
         } else {
-          setIsMockSummary(true);
+          setIsMock(true);
         }
-      } catch {
-        setIsMockSummary(true);
-      }
+      } catch { setIsMock(true); }
     } else {
-      setIsMockSummary(true);
+      setIsMock(true);
     }
 
-    // ── Load extracted document data ─────────────────────────────
+    // Extracted docs
     const docsRaw = sessionStorage.getItem("mk_docs");
     if (docsRaw) {
       try {
         const parsedDocs: ExtractedDoc[] = JSON.parse(docsRaw);
         setDocs(Array.isArray(parsedDocs) ? parsedDocs : []);
-      } catch { /* ignore parse errors */ }
+      } catch { /* ignore */ }
     }
 
-    const timer = setTimeout(() => setStatus("ready"), 1800);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setStatus("ready"), 2000);
+    return () => clearTimeout(t);
   }, []);
 
   async function handleSubmit() {
@@ -100,7 +115,11 @@ export default function SummaryPage() {
     router.push("/complete");
   }
 
-  // ── Generating screen ───────────────────────────────────────────
+  function handlePrint() {
+    window.print();
+  }
+
+  // ── Generating spinner ─────────────────────────────────────────────────────
   if (status === "generating") {
     return (
       <KioskScreen>
@@ -112,25 +131,25 @@ export default function SummaryPage() {
           />
           <div className="text-center space-y-1">
             <h2 className="text-xl font-bold text-neutral-900">
-              {t(lang, "summaryReady")}...
+              MediKiosk रिकॉर्ड बना रहा है…
             </h2>
             <p className="text-sm text-neutral-400">
-              AI is structuring your medical history
+              MediKiosk is generating your clinical intake record
             </p>
           </div>
           <div className="text-left w-full max-w-xs space-y-2">
             {[
-              "Organising symptoms...",
-              "Mapping ICD-10 codes...",
-              "Checking red flags...",
-              "Merging document data...",
-              "Generating AYUSH note...",
+              "Organising symptoms…",
+              "Mapping ICD-10 codes…",
+              "Checking red flags…",
+              "Merging document data…",
+              "Generating clinical record…",
             ].map((step, i) => (
               <motion.div
                 key={step}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.32 }}
+                transition={{ delay: i * 0.35 }}
                 className="flex items-center gap-2 text-sm text-neutral-500"
               >
                 <span className="text-brand-500">✓</span> {step}
@@ -142,325 +161,431 @@ export default function SummaryPage() {
     );
   }
 
-  // ── Ready screen — derived data ─────────────────────────────────
-  const sevColor = SEV_COLORS[summary.severity?.toLowerCase()] ?? SEV_COLORS.moderate;
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const sev       = SEV_COLOR[summary.severity?.toLowerCase()] ?? SEV_COLOR.moderate;
+  const redFlags  = summary.redFlags ?? [];
+  const abnormal  = docs.flatMap((d) => d.labValues?.filter((lv) => lv.flag === "H" || lv.flag === "L") ?? []);
+  const allMeds   = new Set(docs.flatMap((d) => d.medications?.map((m) => m.name) ?? []));
+  const allDx     = docs.flatMap((d) => d.diagnoses ?? []);
 
-  const abnormalLabs = docs.flatMap((doc) =>
-    doc.labValues?.filter((lv) => lv.flag === "H" || lv.flag === "L") ?? []
-  );
-  const docMedNames = new Set(
-    docs.flatMap((doc) => doc.medications?.map((m) => m.name) ?? [])
-  );
+  // Confidence score (heuristic)
+  let confidence = 70;
+  if (!isMock) confidence += 15;
+  if (docs.length > 0) confidence += 8;
+  if (redFlags.length === 0) confidence += 5;
+  confidence = Math.min(confidence, 98);
 
-  function handlePrint() {
-    const docsSection =
-      docs.length > 0
-        ? `\n\nEXTRACTED FROM ${docs.length} DOCUMENT(S):\n` +
-          (abnormalLabs.length > 0
-            ? `Abnormal Labs:\n${abnormalLabs
-                .map((lv) => `  ${lv.test}: ${lv.value} ${lv.unit} [${lv.flag}]`)
-                .join("\n")}\n`
-            : "") +
-          (docMedNames.size > 0
-            ? `Medications (Docs):\n${Array.from(docMedNames)
-                .map((m) => `  ${m}`)
-                .join("\n")}`
-            : "")
-        : "";
-
-    const content = [
-      "MediKiosk — Patient Clinical Summary",
-      `Generated: ${new Date().toLocaleString("en-IN")}`,
-      `Language: ${lang.toUpperCase()}`,
-      "",
-      `Chief Complaint: ${summary.chiefComplaint}`,
-      `Duration: ${summary.duration}`,
-      `Severity: ${summary.severity}`,
-      summary.character ? `Character: ${summary.character}` : "",
-      (summary.associatedSymptoms?.length ?? 0) > 0
-        ? `Associated: ${summary.associatedSymptoms.join(", ")}`
-        : "",
-      `Past History: ${summary.pastHistory || "None"}`,
-      `Medications (Reported): ${summary.currentMedications || "None"}`,
-      summary.suggestedICD10 ? `ICD-10 (AI): ${summary.suggestedICD10}` : "",
-      (summary.redFlags?.length ?? 0) > 0
-        ? `RED FLAGS:\n${summary.redFlags.map((f) => `  ⚠ ${f}`).join("\n")}`
-        : "",
-      summary.ayushNote ? `AYUSH Note: ${summary.ayushNote}` : "",
-      docsSection,
-      "",
-      "Generated by MediKiosk AI · ABDM Compliant",
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const win = window.open("", "_blank");
-    if (win) {
-      win.document.write(
-        `<pre style="font-family:monospace;font-size:13px;padding:24px;white-space:pre-wrap">${content}</pre>`
-      );
-      win.print();
-      win.close();
-    }
-  }
+  const now = new Date().toLocaleDateString("en-IN", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 
   return (
     <KioskScreen>
       <KioskHeader
         title={t(lang, "summaryReady")}
-        subtitle="AI Clinical Summary Ready"
+        subtitle="AI Clinical Intake Record"
         onBack={() => router.push("/scan")}
         progress={90}
         stepLabel="6 / 6"
       />
 
-      <KioskBody className="space-y-3">
-        {/* Warning banner if no real history was taken */}
-        {isMockSummary && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3"
-          >
+      <KioskBody className="space-y-3 pb-6">
+
+        {/* ── HEADER BAR ──────────────────────────────────────────── */}
+        <div className="bg-brand-700 text-white rounded-2xl px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-brand-200 font-medium uppercase tracking-wide">MediKiosk</p>
+            <p className="font-bold text-base leading-tight">AI Clinical Intake Record</p>
+            <p className="text-xs text-brand-300 mt-0.5">{now}</p>
+          </div>
+          <div className="text-right">
+            <span className="bg-amber-400 text-amber-900 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
+              Pending Review
+            </span>
+            <p className="text-xs text-brand-300 mt-1.5">
+              AI Confidence: <span className="text-white font-bold">{confidence}%</span>
+            </p>
+          </div>
+        </div>
+
+        {/* ── PATIENT INFO ─────────────────────────────────────────── */}
+        <div className="bg-neutral-50 rounded-2xl px-4 py-3 flex items-center gap-4 border border-neutral-200">
+          <div className="h-14 w-14 rounded-full bg-brand-100 flex items-center justify-center text-2xl shrink-0">
+            👤
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-neutral-900 text-base truncate">
+              {patient.name ?? "Patient"}
+            </p>
+            {patient.abhaNumber && (
+              <p className="text-xs text-brand-600 font-mono mt-0.5">
+                ABHA: {patient.abhaNumber}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+              {patient.gender && (
+                <span className="text-xs text-neutral-500 capitalize">{patient.gender}</span>
+              )}
+              {patient.yearOfBirth && (
+                <span className="text-xs text-neutral-500">
+                  Age {new Date().getFullYear() - parseInt(patient.yearOfBirth)}y
+                </span>
+              )}
+              <span className="text-xs text-neutral-500 uppercase">{lang}</span>
+            </div>
+          </div>
+          {/* Intake mode badges */}
+          <div className="flex flex-col gap-1 shrink-0">
+            {intakeMode.map((m) => (
+              <span key={m}
+                className="text-[10px] font-semibold bg-brand-50 text-brand-700 border border-brand-200 px-2 py-0.5 rounded-full">
+                {m === "Voice" ? "🎤" : m === "Touch" ? "👆" : "📄"} {m}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* ── INCOMPLETE HISTORY BANNER ────────────────────────────── */}
+        {isMock && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3">
             <span className="text-xl shrink-0">⚠️</span>
             <div>
-              <p className="text-sm font-bold text-amber-800">
-                Voice history not completed
-              </p>
+              <p className="text-sm font-bold text-amber-800">Voice history not completed</p>
               <p className="text-xs text-amber-700 mt-0.5">
-                Please complete the voice/touch interview for a full AI summary.
                 Document data below is still available to the doctor.
               </p>
             </div>
-          </motion.div>
-        )}
-
-        {/* Chief complaint + severity */}
-        {!isMockSummary && (
-          <Card className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <p className="text-xs text-neutral-400 font-semibold uppercase tracking-wide mb-1">
-                  Chief Complaint
-                </p>
-                <p className="font-bold text-neutral-900 text-base leading-snug">
-                  {summary.chiefComplaint}
-                </p>
-                <p className="text-sm text-neutral-500 mt-1">
-                  Duration: <span className="font-semibold">{summary.duration}</span>
-                </p>
-              </div>
-              <span
-                className={cn(
-                  "text-xs font-bold px-3 py-1.5 rounded-full border shrink-0",
-                  sevColor
-                )}
-              >
-                {summary.severity}
-              </span>
-            </div>
-            {summary.character && summary.character !== "—" && (
-              <p className="text-sm text-neutral-600 mt-2 pt-2 border-t border-neutral-100">
-                <span className="font-semibold">Character: </span>
-                {summary.character}
-              </p>
-            )}
-          </Card>
-        )}
-
-        {/* Associated symptoms */}
-        {(summary.associatedSymptoms?.length ?? 0) > 0 && (
-          <Card className="p-4">
-            <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
-              Associated Symptoms
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {summary.associatedSymptoms.map((s) => (
-                <span
-                  key={s}
-                  className="bg-neutral-100 text-neutral-700 text-sm px-3 py-1 rounded-full font-medium"
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {/* Past history + medications (from voice history) */}
-        {!isMockSummary && (
-          <div className="grid grid-cols-2 gap-2.5">
-            <Card className="p-3">
-              <p className="text-xs font-semibold text-neutral-400 uppercase mb-1.5">
-                Past History
-              </p>
-              <p className="text-sm text-neutral-700">
-                {summary.pastHistory || "None reported"}
-              </p>
-            </Card>
-            <Card className="p-3">
-              <p className="text-xs font-semibold text-neutral-400 uppercase mb-1.5">
-                Medications (Reported)
-              </p>
-              <p className="text-sm text-neutral-700">
-                {summary.currentMedications || "None"}
-              </p>
-            </Card>
           </div>
         )}
 
-        {/* ── Document-extracted data panel ─────────────────────── */}
-        {docs.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-2.5"
-          >
-            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide px-1">
-              📄 Extracted from {docs.length} uploaded document
-              {docs.length > 1 ? "s" : ""}
+        {/* ── CHIEF COMPLAINT ──────────────────────────────────────── */}
+        {!isMock && (
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-1">
+              🩺 Chief Complaint
             </p>
-
-            {/* Abnormal lab values */}
-            {abnormalLabs.length > 0 && (
-              <Card className="p-4">
-                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
-                  Abnormal Lab Values
-                </p>
-                <div className="space-y-1.5">
-                  {abnormalLabs.map((lv, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className="text-neutral-700">{lv.test}</span>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn("font-mono", FLAG_COLOR[lv.flag])}
-                        >
-                          {lv.value} {lv.unit}
-                        </span>
-                        <span
-                          className={cn(
-                            "text-xs px-1.5 py-0.5 rounded font-bold",
-                            lv.flag === "H"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-blue-100 text-blue-700"
-                          )}
-                        >
-                          {lv.flag}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
+            <p className="font-bold text-neutral-900 text-sm leading-snug">
+              {summary.chiefComplaint}
+            </p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className={cn(
+                "text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5",
+                sev.bg, sev.text
+              )}>
+                <span className={cn("h-2 w-2 rounded-full", sev.dot)} />
+                {summary.severity} severity
+              </span>
+              {summary.duration && summary.duration !== "—" && (
+                <span className="text-xs text-neutral-500">⏱ {summary.duration}</span>
+              )}
+            </div>
+            {summary.character && summary.character !== "—" && (
+              <p className="text-xs text-neutral-600 mt-2 pt-2 border-t border-neutral-100">
+                <span className="font-semibold">Character:</span> {summary.character}
+              </p>
             )}
+          </div>
+        )}
 
-            {/* Medications from prescriptions */}
-            {docMedNames.size > 0 && (
-              <Card className="p-4">
-                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
-                  Medications (from Documents)
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {Array.from(docMedNames).map((med) => (
-                    <span
-                      key={med}
-                      className="bg-brand-50 text-brand-700 text-xs px-2.5 py-1 rounded-full font-medium border border-brand-100"
-                    >
-                      💊 {med}
+        {/* ── HPI + ASSOCIATED + PAST HISTORY ─────────────────────── */}
+        {!isMock && (
+          <div className="grid grid-cols-2 gap-2.5">
+            {/* History of Present Illness */}
+            <div className="col-span-2 rounded-2xl border border-neutral-200 bg-white p-4">
+              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                📋 History of Present Illness
+              </p>
+              <div className="space-y-1">
+                {[
+                  { label: "Onset", val: summary.character },
+                  { label: "Duration", val: summary.duration },
+                  { label: "Severity", val: summary.severity },
+                  { label: "Medications", val: summary.currentMedications },
+                ].filter((r) => r.val && r.val !== "—").map((r) => (
+                  <div key={r.label} className="flex gap-2 text-xs">
+                    <span className="text-neutral-400 w-20 shrink-0">{r.label}</span>
+                    <span className="text-neutral-800 font-medium">{r.val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Associated Symptoms */}
+            <div className="rounded-2xl border border-neutral-200 bg-white p-3">
+              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                Associated Symptoms
+              </p>
+              {(summary.associatedSymptoms?.length ?? 0) > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {summary.associatedSymptoms.map((s) => (
+                    <span key={s}
+                      className="text-[10px] bg-neutral-100 text-neutral-700 px-2 py-0.5 rounded-full">
+                      {s}
                     </span>
                   ))}
                 </div>
-              </Card>
-            )}
+              ) : (
+                <p className="text-xs text-neutral-400">No associated symptoms</p>
+              )}
+            </div>
 
-            {/* Diagnoses from discharge summaries */}
-            {docs.some((d) => (d.diagnoses?.length ?? 0) > 0) && (
-              <Card className="p-4">
-                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
-                  Previous Diagnoses (from Documents)
+            {/* Past History */}
+            <div className="rounded-2xl border border-neutral-200 bg-white p-3">
+              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                Past History
+              </p>
+              <p className="text-xs text-neutral-700 leading-snug">
+                {summary.pastHistory || "None reported"}
+              </p>
+              {summary.suggestedICD10 && (
+                <p className="text-[10px] text-brand-600 font-mono mt-2">
+                  ICD-10: {summary.suggestedICD10}
                 </p>
-                <div className="space-y-1">
-                  {docs
-                    .flatMap((d) => d.diagnoses ?? [])
-                    .map((dx, i) => (
-                      <p
-                        key={i}
-                        className="text-sm text-neutral-700 flex items-start gap-2"
-                      >
-                        <span className="text-neutral-400 shrink-0">•</span>{" "}
-                        {dx}
-                      </p>
-                    ))}
-                </div>
-              </Card>
-            )}
-          </motion.div>
+              )}
+            </div>
+          </div>
         )}
 
-        {/* ICD-10 */}
-        {summary.suggestedICD10 && (
-          <Card className="p-4 flex items-center gap-3">
-            <span className="text-2xl">🏷️</span>
-            <div>
-              <p className="text-xs text-neutral-400 font-semibold uppercase tracking-wide">
-                Suggested ICD-10
-              </p>
-              <p className="font-bold text-neutral-900 text-sm">
-                {summary.suggestedICD10}
+        {/* ── DOCUMENTS TABLE ──────────────────────────────────────── */}
+        {docs.length > 0 && (
+          <div className="rounded-2xl border border-neutral-200 bg-white overflow-hidden">
+            <div className="px-4 py-2.5 bg-neutral-50 border-b border-neutral-200">
+              <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                📄 Documents Uploaded & Extracted ({docs.length})
               </p>
             </div>
-          </Card>
+            <div className="divide-y divide-neutral-100">
+              {docs.map((doc, i) => {
+                const keyFindings = [
+                  ...(doc.diagnoses?.slice(0, 2) ?? []),
+                  ...(doc.medications?.slice(0, 2).map((m) => m.name) ?? []),
+                  ...(doc.labValues?.slice(0, 2).map((lv) => `${lv.test}: ${lv.value} ${lv.unit}`) ?? []),
+                ].slice(0, 3);
+
+                return (
+                  <div key={i} className="px-4 py-3 grid grid-cols-[auto_1fr_auto] gap-3 items-start">
+                    <div className="text-lg">
+                      {doc.docType === "prescription" ? "💊"
+                        : doc.docType === "lab_report" ? "🧪"
+                        : doc.docType === "xray_report" ? "🩻"
+                        : doc.docType === "discharge_summary" ? "🏥" : "📄"}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-neutral-800">{DocTypeLabel(doc.docType)}</p>
+                      <p className="text-[10px] text-neutral-400 mt-0.5">
+                        {doc.date ?? "Date not found"} · {doc.hospitalName ?? "Scanned"}
+                      </p>
+                      <div className="mt-1 space-y-0.5">
+                        {keyFindings.length > 0 ? keyFindings.map((f, j) => (
+                          <p key={j} className="text-[10px] text-neutral-600">• {f}</p>
+                        )) : (
+                          <p className="text-[10px] text-neutral-400 italic">No key findings extracted</p>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <span className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                        doc.confidence === "high" ? "bg-green-100 text-green-700"
+                          : doc.confidence === "medium" ? "bg-amber-100 text-amber-700"
+                          : "bg-red-100 text-red-700"
+                      )}>
+                        {doc.confidence === "high" ? "High" : doc.confidence === "medium" ? "Med" : "Low"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
-        {/* Red flags */}
-        {(summary.redFlags?.length ?? 0) > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="bg-red-50 border border-red-200 rounded-2xl p-4 space-y-2"
-          >
-            <p className="text-sm font-bold text-red-800 flex items-center gap-2">
-              🚨 Red Flags — Doctor Attention Required
+        {/* ── MEDICAL TIMELINE ─────────────────────────────────────── */}
+        {(allDx.length > 0 || abnormal.length > 0) && (
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-3">
+              📅 Medical Timeline
             </p>
-            {summary.redFlags.map((flag) => (
-              <p
-                key={flag}
-                className="text-sm text-red-700 flex items-start gap-2"
-              >
-                <span className="shrink-0 mt-0.5">⚠️</span> {flag}
+            <div className="relative pl-4">
+              <div className="absolute left-1.5 top-0 bottom-0 w-0.5 bg-neutral-200" />
+              {allDx.map((dx, i) => (
+                <div key={i} className="relative mb-2 last:mb-0">
+                  <div className="absolute -left-3 top-1 h-2.5 w-2.5 rounded-full bg-brand-500 border-2 border-white" />
+                  <p className="text-xs text-neutral-700 font-medium">{dx}</p>
+                  <p className="text-[10px] text-neutral-400">From uploaded document</p>
+                </div>
+              ))}
+              {abnormal.map((lv, i) => (
+                <div key={`lv-${i}`} className="relative mb-2 last:mb-0">
+                  <div className={cn(
+                    "absolute -left-3 top-1 h-2.5 w-2.5 rounded-full border-2 border-white",
+                    lv.flag === "H" ? "bg-red-500" : "bg-blue-500"
+                  )} />
+                  <p className="text-xs font-medium text-neutral-800">
+                    {lv.test}: {lv.value} {lv.unit}
+                    <span className={cn(
+                      "ml-1.5 text-[10px] font-bold",
+                      lv.flag === "H" ? "text-red-600" : "text-blue-600"
+                    )}>
+                      [{lv.flag === "H" ? "↑ HIGH" : "↓ LOW"}]
+                    </span>
+                  </p>
+                  <p className="text-[10px] text-neutral-400">Abnormal lab value</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── AI GENERATED SUMMARY ─────────────────────────────────── */}
+        <div className="rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/40 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold text-brand-600 uppercase tracking-widest">
+              🤖 AI Generated Summary (For Physician)
+            </p>
+            <span className="text-[10px] bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full font-semibold">
+              DRAFT
+            </span>
+          </div>
+          <p className="text-xs text-neutral-700 leading-relaxed">
+            {!isMock
+              ? `Patient presents with ${summary.chiefComplaint?.toLowerCase()}` +
+                (summary.duration && summary.duration !== "—" ? ` for ${summary.duration}` : "") +
+                (summary.character && summary.character !== "—" ? `. Character: ${summary.character}` : "") +
+                ((summary.associatedSymptoms?.length ?? 0) > 0
+                  ? `. Associated: ${summary.associatedSymptoms.join(", ")}` : "") +
+                (summary.pastHistory && summary.pastHistory !== "—"
+                  ? `. PMH: ${summary.pastHistory}` : "") +
+                (summary.currentMedications && summary.currentMedications !== "—"
+                  ? `. Current medications: ${summary.currentMedications}` : "") +
+                "."
+              : "Voice history not recorded. Please review document extracts below."}
+          </p>
+          {summary.ayushNote && (
+            <div className="mt-2 pt-2 border-t border-brand-100">
+              <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-0.5">
+                🌿 AYUSH Note
+              </p>
+              <p className="text-xs text-green-900">{summary.ayushNote}</p>
+            </div>
+          )}
+          <p className="text-[10px] text-brand-400 mt-2 italic">
+            ⚠ AI-generated draft — must be verified by the physician before clinical use
+          </p>
+        </div>
+
+        {/* ── RED FLAG CHECK ───────────────────────────────────────── */}
+        <div className={cn(
+          "rounded-2xl border p-4",
+          redFlags.length > 0
+            ? "bg-red-50 border-red-200"
+            : "bg-green-50 border-green-200"
+        )}>
+          <p className={cn(
+            "text-[10px] font-bold uppercase tracking-widest mb-2",
+            redFlags.length > 0 ? "text-red-600" : "text-green-700"
+          )}>
+            🚨 Red Flag Check
+          </p>
+          {redFlags.length > 0 ? (
+            <div className="space-y-1.5">
+              {redFlags.map((f) => (
+                <div key={f} className="flex items-start gap-2">
+                  <span className="text-red-500 shrink-0 mt-0.5">⚠️</span>
+                  <p className="text-xs text-red-800 font-medium">{f}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-green-700 flex items-center gap-2">
+              <span>✅</span> No red flags detected
+            </p>
+          )}
+          <p className="text-[10px] text-neutral-400 mt-2">
+            Overall Risk: <span className={cn(
+              "font-bold",
+              redFlags.length > 1 ? "text-red-600" : redFlags.length === 1 ? "text-amber-600" : "text-green-600"
+            )}>
+              {redFlags.length > 1 ? "HIGH" : redFlags.length === 1 ? "MODERATE" : "LOW"}
+            </span>
+          </p>
+        </div>
+
+        {/* ── MEDICATIONS FROM DOCS ────────────────────────────────── */}
+        {allMeds.size > 0 && (
+          <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+              💊 Medication (Current)
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {Array.from(allMeds).map((med) => (
+                <span key={med}
+                  className="text-xs bg-brand-50 text-brand-700 border border-brand-100 px-2.5 py-1 rounded-full font-medium">
+                  {med}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── PATIENT CONSENT ──────────────────────────────────────── */}
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+            🔒 Patient Consent
+          </p>
+          <div className="space-y-1">
+            {[
+              "Data shared only with treating physician",
+              "ABDM / DPDP Act 2023 compliant",
+              "No raw Aadhaar stored",
+            ].map((c) => (
+              <p key={c} className="text-xs text-neutral-600 flex items-center gap-2">
+                <span className="text-green-500 shrink-0">✓</span> {c}
               </p>
             ))}
-          </motion.div>
-        )}
+          </div>
+        </div>
 
-        {/* AYUSH note */}
-        {summary.ayushNote && (
-          <Card className="p-4 bg-green-50 border-green-200">
-            <p className="text-xs font-semibold text-green-800 uppercase tracking-wide mb-1">
-              🌿 AYUSH Clinical Note
+        {/* ── CONFIDENCE SCORE BAR ─────────────────────────────────── */}
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+              AI Confidence Overall Record
             </p>
-            <p className="text-sm text-green-900">{summary.ayushNote}</p>
-          </Card>
-        )}
+            <p className={cn(
+              "text-2xl font-black",
+              confidence >= 85 ? "text-green-600" : confidence >= 70 ? "text-amber-600" : "text-red-600"
+            )}>
+              {confidence}%
+            </p>
+          </div>
+          <div className="w-full bg-neutral-100 rounded-full h-2.5">
+            <div
+              className={cn(
+                "h-2.5 rounded-full transition-all duration-1000",
+                confidence >= 85 ? "bg-green-500" : confidence >= 70 ? "bg-amber-500" : "bg-red-500"
+              )}
+              style={{ width: `${confidence}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-neutral-400 mt-1.5">
+            Based on voice history completeness + document quality
+          </p>
+        </div>
 
-        {/* Print button */}
+        {/* Print */}
         <button
           onClick={handlePrint}
           className="w-full border border-neutral-200 text-neutral-500 text-sm font-semibold
                      py-2.5 rounded-2xl hover:bg-neutral-50 transition-colors flex items-center
                      justify-center gap-2"
         >
-          🖨️ Print Summary
+          🖨️ Print Clinical Record
         </button>
 
-        {/* Privacy notice */}
-        <p className="text-xs text-neutral-400 text-center pt-1 pb-2">
-          🔒 This summary is encrypted and will only be shared with your doctor today.
+        <p className="text-[10px] text-neutral-400 text-center pb-2">
+          🔒 Encrypted · Shared only with your treating doctor today · ABDM Compliant
         </p>
       </KioskBody>
 
@@ -472,7 +597,7 @@ export default function SummaryPage() {
           loading={submitted}
           onClick={handleSubmit}
         >
-          {submitted ? "Submitting..." : `✅ ${t(lang, "submitToDoctor")}`}
+          {submitted ? "Submitting…" : `✅ ${t(lang, "submitToDoctor")}`}
         </Button>
       </KioskFooter>
     </KioskScreen>

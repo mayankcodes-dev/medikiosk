@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ABDM_CLIENT_ID=${ABDM_CLIENT_ID:-}
+      - ABDM_CLIENT_SECRET=${ABDM_CLIENT_SECRET:-}
+      - ABDM_BASE_URL=${ABDM_BASE_URL:-https://dev.abdm.gov.in}
+      - ABDM_ENV=${ABDM_ENV:-dev}
+      - ABDM_FACILITY_ID=${ABDM_FACILITY_ID:-}
+      - NEXT_PUBLIC_CALLBACK_URL=${NEXT_PUBLIC_CALLBACK_URL:-http://localhost:3000}
+      - BHASHINI_USER_ID=${BHASHINI_USER_ID:-}
+      - BHASHINI_API_KEY=${BHASHINI_API_KEY:-}
+      - DOCTOR_PIN=${DOCTOR_PIN:-1234}
+      - INGEST_SECRET=${INGEST_SECRET:-}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - medikiosk
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - medikiosk
+    # Future: queue persistence, session cache, rate limiting
+
+  # Uncomment when PostgreSQL persistence is needed (Phase 2 backend)
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_DB: medikiosk
+  #     POSTGRES_USER: mkuser
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   restart: unless-stopped
+  #   networks:
+  #     - medikiosk
+
+volumes:
+  redis_data:
+  # postgres_data:
+
+networks:
+  medikiosk:
+    driver: bridge
