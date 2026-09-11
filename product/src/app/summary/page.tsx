@@ -32,6 +32,56 @@ const PLACEHOLDER_SUMMARY: StructuredSummary = {
   ayushNote: "",
 };
 
+// ── Build report from raw messages when Gemini summary is unavailable ────────
+type RawMsg = { role: "ai" | "patient"; text: string; stage?: string };
+function buildSummaryFromSessionMessages(messages: RawMsg[]): StructuredSummary {
+  const byStage = (stg: string): string => {
+    const msgs = messages.filter((m) => m.role === "patient" && m.stage === stg);
+    return msgs.map((m) => m.text).join("; ") || "Not reported";
+  };
+
+  const cc      = byStage("chief_complaint");
+  const hpi     = byStage("hpi");
+  const past    = byStage("past_history");
+  const drug    = byStage("drug_allergy");
+  const family  = byStage("family_history");
+  const personal= byStage("personal_history");
+  const ros     = byStage("review_of_systems");
+  const prakriti= byStage("ayush_prakriti");
+  const vikriti = byStage("ayush_vikriti");
+  const agni    = byStage("ayush_agni");
+  const koshtha = byStage("ayush_koshtha");
+  const ahara   = byStage("ayush_ahara_vihara");
+  const nidana  = byStage("ayush_nidana");
+  const samprapti=byStage("ayush_samprapti");
+
+  const allText = messages.map((m) => m.text).join(" ").toLowerCase();
+  const redFlags: string[] = [];
+  if (/chest pain|सीने में दर्द|ਛਾਤੀ ਦਰਦ/.test(allText)) redFlags.push("Possible cardiac — chest pain reported");
+  if (/breathless|breath|सांस/.test(allText)) redFlags.push("Breathlessness noted");
+  if (/blood|खून|bleeding/.test(allText)) redFlags.push("Bleeding reported — assess urgency");
+  if (/unconscious|seizure|बेहोश/.test(allText)) redFlags.push("Altered consciousness — emergency triage");
+
+  const hasAyush = [prakriti, vikriti, agni, koshtha, ahara, nidana, samprapti].some(v => v !== "Not reported");
+
+  return {
+    chiefComplaint: cc,
+    hpi,
+    pastHistory: past,
+    drugAllergy: drug,
+    familyHistory: family,
+    personalHistory: personal,
+    reviewOfSystems: ros,
+    currentMedications: drug !== "Not reported" ? drug : "None reported",
+    suggestedICD10: "",
+    redFlags,
+    ayushNote: hasAyush
+      ? `Prakriti: ${prakriti}. Vikriti: ${vikriti}. Agni: ${agni}. Koshtha: ${koshtha}. Ahara-Vihara: ${ahara}. Nidana: ${nidana}. Samprapti: ${samprapti}.`
+      : "",
+    ...(hasAyush ? { prakriti, vikriti, agniType: agni, koshtha, aharaVihara: ahara, nidana, samprapti } : {}),
+  };
+}
+
 function DocTypeLabel(type: string): string {
   const m: Record<string, string> = {
     prescription: "Prescription",
@@ -81,8 +131,10 @@ export default function SummaryPage() {
   const [isAyush, setIsAyush]     = useState(false);
 
   useEffect(() => {
+    const savedMode = sessionStorage.getItem("mk_mode") ?? "hi";
     setLang(sessionStorage.getItem("mk_lang") ?? "hi");
-    setIsAyush(sessionStorage.getItem("mk_mode") === "ayush");
+    // combined mode has AYUSH stages too
+    setIsAyush(savedMode === "ayush" || savedMode === "combined");
 
     try {
       setPatient(JSON.parse(sessionStorage.getItem("mk_patient") ?? "{}"));
@@ -98,8 +150,17 @@ export default function SummaryPage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.summary?.chiefComplaint) { setSummary(parsed.summary); setIsMock(false); }
-        else setIsMock(true);
+        if (parsed.summary?.chiefComplaint) {
+          setSummary(parsed.summary);
+          setIsMock(false);
+        } else if (Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+          // Gemini didn't return summary — build it from raw messages
+          const built = buildSummaryFromSessionMessages(parsed.messages);
+          setSummary(built);
+          setIsMock(false);
+        } else {
+          setIsMock(true);
+        }
       } catch { setIsMock(true); }
     } else { setIsMock(true); }
 

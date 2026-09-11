@@ -258,27 +258,40 @@ JSON Schema:
 // ── Gemini call helper ────────────────────────────────────────────────────────
 
 async function callGemini(systemPrompt: string, userPrompt: string): Promise<string | null> {
+  // gemini-2.0-flash deprecated (404). Use 2.5-flash primary, 1.5-flash as fallback.
   const modelsToTry = [
     process.env.GEMINI_MODEL,
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
     "gemini-1.5-flash",
   ].filter(Boolean) as string[];
 
   for (const model of modelsToTry) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const response: any = await ai.models.generateContent({
-        model,
-        contents: [
-          { role: "user", parts: [{ text: systemPrompt }] },
-          { role: "model", parts: [{ text: "Understood. I will ask one question at a time in the patient's language." }] },
-          { role: "user", parts: [{ text: userPrompt }] },
-        ],
-      });
-      if (response?.text) return response.text.trim();
-    } catch {
-      // try next model
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const response: any = await ai.models.generateContent({
+          model,
+          contents: [
+            { role: "user", parts: [{ text: systemPrompt }] },
+            { role: "model", parts: [{ text: "Understood. I will ask one contextual question at a time in the patient's language." }] },
+            { role: "user", parts: [{ text: userPrompt }] },
+          ],
+        });
+        if (response?.text) return response.text.trim();
+        break; // null response but not an error — try next model
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+          // Rate limited — wait 6 seconds then retry once
+          if (attempt === 0) {
+            await new Promise((r) => setTimeout(r, 6000));
+            continue;
+          }
+          // Still failing — try next model
+        }
+        // Other error (404 deprecated, etc.) — try next model immediately
+        break;
+      }
     }
   }
   return null;

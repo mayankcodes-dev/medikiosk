@@ -145,7 +145,67 @@ function getStageLabels(lang: string): Record<Stage, string> {
   return labels[lang] ?? labels["hi"];
 }
 
-// Fully localized touch option chips per stage per language
+// ── Build summary from raw messages when Gemini is unavailable ───────────────
+// Extracts patient answers keyed by stage label and builds StructuredSummary
+function buildSummaryFromMessages(messages: ChatMessage[]): StructuredSummary {
+  // Get last patient answer per stage
+  const byStage = (stg: Stage): string => {
+    const msgs = messages.filter((m) => m.role === "patient" && m.stage === stg);
+    return msgs.map((m) => m.text).join("; ") || "Not reported";
+  };
+
+  const cc = byStage("chief_complaint");
+  const hpiRaw = byStage("hpi");
+  const past = byStage("past_history");
+  const drug = byStage("drug_allergy");
+  const family = byStage("family_history");
+  const personal = byStage("personal_history");
+  const ros = byStage("review_of_systems");
+  const prakriti = byStage("ayush_prakriti");
+  const vikriti = byStage("ayush_vikriti");
+  const agni = byStage("ayush_agni");
+  const koshtha = byStage("ayush_koshtha");
+  const ahara = byStage("ayush_ahara_vihara");
+  const nidana = byStage("ayush_nidana");
+  const samprapti = byStage("ayush_samprapti");
+
+  // Simple red flag detection
+  const allText = messages.map((m) => m.text).join(" ").toLowerCase();
+  const redFlags: string[] = [];
+  if (/chest pain|سینہ درد|ਛਾਤੀ ਦਰਦ|흉통|सीने में दर्द/.test(allText)) redFlags.push("Possible cardiac — chest pain reported");
+  if (/breathless|breath|सांस/.test(allText)) redFlags.push("Breathlessness — urgent review needed");
+  if (/blood|खून|bleeding|ਖੂਨ/.test(allText)) redFlags.push("Bleeding reported — assess urgency");
+  if (/unconscious|seizure|बेहोश/.test(allText)) redFlags.push("Altered consciousness — emergency triage");
+
+  const ayushHasData = [prakriti, vikriti, agni, koshtha, ahara, nidana, samprapti]
+    .some((v) => v !== "Not reported");
+
+  return {
+    chiefComplaint: cc,
+    hpi: hpiRaw,
+    pastHistory: past,
+    drugAllergy: drug,
+    familyHistory: family,
+    personalHistory: personal,
+    reviewOfSystems: ros,
+    currentMedications: drug !== "Not reported" ? drug : "None reported",
+    suggestedICD10: "",
+    redFlags,
+    ayushNote: ayushHasData
+      ? `Prakriti: ${prakriti}. Vikriti: ${vikriti}. Agni: ${agni}. Koshtha: ${koshtha}. Ahara-Vihara: ${ahara}. Nidana: ${nidana}. Samprapti: ${samprapti}.`
+      : "",
+    ...(ayushHasData ? {
+      prakriti,
+      vikriti,
+      agniType: agni,
+      koshtha,
+      aharaVihara: ahara,
+      nidana,
+      samprapti,
+    } : {}),
+  };
+}
+
 const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
   hi: {
     chief_complaint: ["बुखार", "दर्द", "उल्टी", "सांस में तकलीफ", "चक्कर", "कमज़ोरी", "खांसी", "पेट दर्द"],
@@ -647,10 +707,25 @@ export default function HistoryPage() {
             messages: newMessages,
             summary: data.structuredSummary,
           }));
+        } else {
+          // Gemini returned no summary — build one from raw messages
+          const built = buildSummaryFromMessages(newMessages);
+          setSummary(built);
+          setIsComplete(true);
+          sessionStorage.setItem("mk_history", JSON.stringify({
+            messages: newMessages,
+            summary: built,
+          }));
         }
       } catch {
+        // Gemini quota hit or network error — build summary directly from patient answers
+        const built = buildSummaryFromMessages(newMessages);
+        setSummary(built);
         setIsComplete(true);
-        sessionStorage.setItem("mk_history", JSON.stringify({ messages: newMessages }));
+        sessionStorage.setItem("mk_history", JSON.stringify({
+          messages: newMessages,
+          summary: built,
+        }));
       } finally {
         setAiLoading(false);
       }
