@@ -124,18 +124,111 @@ export default function HistoryPage() {
           setStage(data.nextStage ?? forStage);
         }
       } catch {
-        // Offline fallback — use static question
-        const fallbacks: Record<Stage, string> = {
-          chief_complaint: "आज आपको मुख्य रूप से क्या तकलीफ है?",
-          duration: "यह तकलीफ कितने दिनों से है?",
-          character: "दर्द या तकलीफ कैसी है?",
-          severity: "दर्द कितना तेज़ है?",
-          associated_symptoms: "क्या साथ में बुखार या उल्टी है?",
-          past_history: "क्या पहले कोई बड़ी बीमारी हुई है?",
-          medications: "क्या आप कोई दवाई ले रहे हैं?",
-          summary: "",
+        // Offline fallback — multilingual static questions per stage
+        const OFFLINE_FALLBACKS: Record<string, Record<Stage, string>> = {
+          hi: {
+            chief_complaint: "आज आपको मुख्य रूप से क्या तकलीफ है?",
+            duration: "यह तकलीफ कितने दिनों से है?",
+            character: "दर्द या तकलीफ कैसी है?",
+            severity: "1 से 10 के पैमाने पर दर्द कितना है?",
+            associated_symptoms: "क्या साथ में बुखार, उल्टी या चक्कर है?",
+            past_history: "क्या पहले कोई बड़ी बीमारी हुई है?",
+            medications: "क्या आप अभी कोई दवाई ले रहे हैं?",
+            summary: "",
+          },
+          en: {
+            chief_complaint: "What is your main problem today?",
+            duration: "How long have you had this problem?",
+            character: "How would you describe the pain or discomfort?",
+            severity: "On a scale of 1 to 10, how severe is it?",
+            associated_symptoms: "Do you have fever, vomiting, or dizziness?",
+            past_history: "Do you have any major past illness or surgery?",
+            medications: "Are you currently taking any medicines?",
+            summary: "",
+          },
+          ta: {
+            chief_complaint: "இன்று உங்கள் முக்கிய பிரச்சினை என்ன?",
+            duration: "இந்த பிரச்சினை எத்தனை நாட்களாக இருக்கிறது?",
+            character: "வலி அல்லது அசௌகரியம் எப்படி இருக்கிறது?",
+            severity: "1 முதல் 10 வரை, வலி எவ்வளவு தீவிரமானது?",
+            associated_symptoms: "காய்ச்சல், வாந்தி அல்லது தலைச்சுற்றல் உள்ளதா?",
+            past_history: "முன்பு ஏதாவது பெரிய நோய் வந்ததுண்டா?",
+            medications: "இப்போது ஏதாவது மருந்து சாப்பிடுகிறீர்களா?",
+            summary: "",
+          },
+          te: {
+            chief_complaint: "ఈరోజు మీ ప్రధాన సమస్య ఏమిటి?",
+            duration: "ఈ సమస్య ఎన్ని రోజులనుండి ఉంది?",
+            character: "నొప్పి లేదా అసౌకర్యం ఎలా ఉంది?",
+            severity: "1 నుండి 10 స్కేల్‌లో నొప్పి ఎంత తీవ్రంగా ఉంది?",
+            associated_symptoms: "జ్వరం, వాంతి లేదా తలతిరుగుట ఉందా?",
+            past_history: "గతంలో ఏదైనా పెద్ద వ్యాధి వచ్చిందా?",
+            medications: "ఇప్పుడు ఏదైనా మందులు తీసుకుంటున్నారా?",
+            summary: "",
+          },
+          bn: {
+            chief_complaint: "আজ আপনার প্রধান সমস্যা কী?",
+            duration: "এই সমস্যা কতদিন ধরে আছে?",
+            character: "ব্যথা বা অস্বস্তি কেমন?",
+            severity: "১ থেকে ১০-এর মধ্যে ব্যথা কতটুকু?",
+            associated_symptoms: "কি জ্বর, বমি বা মাথা ঘোরা আছে?",
+            past_history: "আগে কোনো বড় রোগ হয়েছিল?",
+            medications: "এখন কোনো ওষুধ খাচ্ছেন?",
+            summary: "",
+          },
+          mr: {
+            chief_complaint: "आज तुमची मुख्य समस्या काय आहे?",
+            duration: "ही समस्या किती दिवसांपासून आहे?",
+            character: "वेदना किंवा त्रास कसा आहे?",
+            severity: "१ ते १० मध्ये वेदना किती आहे?",
+            associated_symptoms: "ताप, उलटी किंवा चक्कर येते का?",
+            past_history: "आधी काही मोठा आजार झाला होता का?",
+            medications: "सध्या काही औषधे घेत आहात का?",
+            summary: "",
+          },
+          gu: {
+            chief_complaint: "આજે તમારી મુખ્ય સમસ્યા શું છે?",
+            duration: "આ સમસ્યા કેટલા દિવસોથી છે?",
+            character: "દર્દ અથવા અગવડ કેવી છે?",
+            severity: "1 થી 10 ના પ્રમાણ પર દર્દ કેટલું છે?",
+            associated_symptoms: "શું તાવ, ઉલ્ટી અથવા ચક્કર છે?",
+            past_history: "પહેલા કોઈ મોટી બીમારી થઈ હતી?",
+            medications: "શું હાલ કોઈ દવા લઈ રહ્યા છો?",
+            summary: "",
+          },
+          kn: {
+            chief_complaint: "ಇಂದು ನಿಮ್ಮ ಮುಖ್ಯ ಸಮಸ್ಯೆ ಏನು?",
+            duration: "ಈ ಸಮಸ್ಯೆ ಎಷ್ಟು ದಿನಗಳಿಂದ ಇದೆ?",
+            character: "ನೋವು ಅಥವಾ ಅಸ್ವಸ್ಥತೆ ಹೇಗಿದೆ?",
+            severity: "1 ರಿಂದ 10 ರ ಮಾಪನದಲ್ಲಿ ನೋವು ಎಷ್ಟಿದೆ?",
+            associated_symptoms: "ಜ್ವರ, ವಾಂತಿ ಅಥವಾ ತಲೆತಿರುಗುವಿಕೆ ಇದೆಯೇ?",
+            past_history: "ಹಿಂದೆ ಯಾವುದಾದರೂ ದೊಡ್ಡ ಕಾಯಿಲೆ ಬಂದಿತ್ತೇ?",
+            medications: "ಈಗ ಯಾವುದಾದರೂ ಔಷಧ ತೆಗೆದುಕೊಳ್ಳುತ್ತಿದ್ದೀರಾ?",
+            summary: "",
+          },
+          ml: {
+            chief_complaint: "ഇന്ന് നിങ്ങളുടെ പ്രധാന പ്രശ്നം എന്താണ്?",
+            duration: "ഈ പ്രശ്നം എത്ര ദിവസമായി ഉണ്ട്?",
+            character: "വേദന അല്ലെങ്കിൽ അസ്വസ്ഥത എങ്ങനെ ആണ്?",
+            severity: "1 മുതൽ 10 വരെ, വേദന എത്രമാത്രം ശക്തമാണ്?",
+            associated_symptoms: "പനി, ഛർദ്ദി അല്ലെങ്കിൽ തലകറക്കം ഉണ്ടോ?",
+            past_history: "മുമ്പ് എന്തെങ്കിലും വലിയ രോഗം ഉണ്ടായിരുന്നോ?",
+            medications: "ഇപ്പോൾ എന്തെങ്കിലും മരുന്ന് കഴിക്കുന്നുണ്ടോ?",
+            summary: "",
+          },
+          pa: {
+            chief_complaint: "ਅੱਜ ਤੁਹਾਡੀ ਮੁੱਖ ਸਮੱਸਿਆ ਕੀ ਹੈ?",
+            duration: "ਇਹ ਸਮੱਸਿਆ ਕਿੰਨੇ ਦਿਨਾਂ ਤੋਂ ਹੈ?",
+            character: "ਦਰਦ ਜਾਂ ਤਕਲੀਫ਼ ਕਿਵੇਂ ਦੀ ਹੈ?",
+            severity: "1 ਤੋਂ 10 ਦੇ ਪੈਮਾਨੇ 'ਤੇ ਦਰਦ ਕਿੰਨਾ ਹੈ?",
+            associated_symptoms: "ਕੀ ਬੁਖ਼ਾਰ, ਉਲਟੀ ਜਾਂ ਚੱਕਰ ਹੈ?",
+            past_history: "ਪਹਿਲਾਂ ਕੋਈ ਵੱਡੀ ਬਿਮਾਰੀ ਹੋਈ ਸੀ?",
+            medications: "ਕੀ ਹੁਣ ਕੋਈ ਦਵਾਈ ਲੈ ਰਹੇ ਹੋ?",
+            summary: "",
+          },
         };
-        setCurrentQuestion(fallbacks[forStage]);
+        const langFallbacks = OFFLINE_FALLBACKS[lang] ?? OFFLINE_FALLBACKS["hi"];
+        setCurrentQuestion(langFallbacks[forStage]);
       } finally {
         setAiLoading(false);
       }

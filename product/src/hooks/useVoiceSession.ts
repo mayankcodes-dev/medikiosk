@@ -13,7 +13,6 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   isBhashiniConfigured,
   bhashiniASR,
-  bhashiniTTS,
   playAudioBuffer,
 } from "@/lib/bhashini";
 
@@ -133,24 +132,35 @@ export function useVoiceSession({
       setState("speaking");
       setIsSpeaking(true);
 
-      // ── Bhashini TTS ─────────────────────────────────────────
+      // ── Server-side Bhashini TTS (API key stays on server) ───────
       if (engine === "bhashini") {
         try {
-          const buffer = await bhashiniTTS(text, lang, "female");
-          if (buffer) {
-            await playAudioBuffer(buffer, () => {
-              setIsSpeaking(false);
-              setState("idle");
-              onEnd?.();
-            });
-            return;
+          const res = await fetch("/api/bhashini/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, lang, gender: "female" }),
+          });
+          if (res.ok) {
+            const { audioBase64 } = await res.json();
+            if (audioBase64) {
+              // Decode base64 → ArrayBuffer
+              const binaryStr = atob(audioBase64);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+              await playAudioBuffer(bytes.buffer, () => {
+                setIsSpeaking(false);
+                setState("idle");
+                onEnd?.();
+              });
+              return;
+            }
           }
         } catch (e) {
-          console.warn("[Voice] Bhashini TTS failed, falling back:", e);
+          console.warn("[Voice] Bhashini TTS server proxy failed, falling back:", e);
         }
       }
 
-      // ── Web Speech Synthesis fallback ────────────────────────
+      // ── Web Speech Synthesis fallback ────────────────────────────
       if (!synthRef.current) { setIsSpeaking(false); setState("idle"); onEnd?.(); return; }
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = webSpeechInfo.bcp47;
