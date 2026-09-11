@@ -456,8 +456,10 @@ export default function SummaryPage() {
         {/* ── AI GENERATED SUMMARY ─────────────────────────────────── */}
         <div className="rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/40 p-4">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-bold text-brand-600 uppercase tracking-widest">
-              🤖 AI Generated Summary (For Physician)
+            <p className="text-[10px] font-bold text-brand-600 uppercase tracking-widest flex items-center gap-1.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.jpg" alt="MediKiosk" className="h-4 w-4 rounded-full object-cover" />
+              AI Generated Summary (For Physician)
             </p>
             <span className="text-[10px] bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full font-semibold">
               DRAFT

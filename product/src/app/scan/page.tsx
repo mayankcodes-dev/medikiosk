@@ -323,7 +323,9 @@ export default function ScanPage() {
 
         <KioskFooter className="space-y-2">
           <Button variant="primary" size="xl" fullWidth onClick={handleExtract}>
-            🤖 MediKiosk से पढ़ें · Extract with MediKiosk AI
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.jpg" alt="MediKiosk" className="h-5 w-5 rounded-full object-cover inline-block mr-1.5 align-middle" />
+            MediKiosk से पढ़ें · Extract with MediKiosk AI
           </Button>
           <Button
             variant="ghost"
@@ -398,8 +400,9 @@ export default function ScanPage() {
             transition={{ duration: 0.3 }}
             className="flex items-center gap-3 bg-brand-600 text-white rounded-2xl px-4 py-3 shadow-sm"
           >
-            <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center text-xl shrink-0">
-              🤖
+            <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.jpg" alt="MediKiosk" className="h-8 w-8 rounded-lg object-cover" />
             </div>
             <div className="flex-1">
               <p className="font-bold text-sm leading-tight">
