@@ -107,6 +107,8 @@ export interface StructuredSummary {
 // ── Stage sequencing ─────────────────────────────────────────────────────────
 
 function getStageList(mode: InterviewMode): readonly Stage[] {
+  // "combined" = all stages (allopathic + AYUSH merged). API treats it as ayush (full list).
+  if (mode === "combined" as string) return AYUSH_STAGES;
   return mode === "ayush" ? AYUSH_STAGES : ALLOPATHIC_STAGES;
 }
 
@@ -175,31 +177,38 @@ function buildSystemPrompt(
 ): string {
   const langName = LANG_NAMES[lang] ?? "Hindi";
   const langScript = LANG_SCRIPTS[lang] ?? langName;
-  const modeDesc =
-    mode === "ayush"
-      ? "an Ayurvedic (AYUSH) medical assistant following Dashavidha Pariksha"
-      : "a clinical history-taking assistant following the SOCRATES framework";
 
   const ragSection = ragContext
-    ? `\n\n--- CLINICAL KNOWLEDGE (use this to guide your question) ---\n${ragContext}\n--- END CLINICAL KNOWLEDGE ---`
+    ? `\n\n--- CLINICAL KNOWLEDGE (use this to guide relevant follow-up) ---\n${ragContext}\n--- END CLINICAL KNOWLEDGE ---`
     : "";
 
-  return `You are MediKiosk — ${modeDesc} deployed at Indian government hospitals.
+  return `You are MediKiosk — an empathetic clinical history-taking AI assistant deployed at Indian government hospitals and kiosks.
 
-ROLE: Gather clinical history from patients BEFORE they see the doctor. You are NOT diagnosing.
+CORE ROLE: Gather medical history from patients BEFORE they see the doctor. You are NOT diagnosing — only listening and asking follow-up questions.
 
 LANGUAGE (CRITICAL): You MUST respond ONLY in ${langName} (${langScript}).
-- NEVER use English words unless there is no equivalent in ${langName}
-- Write ONLY in the native script for ${langName}
-- If the patient writes in another language, still reply in ${langName}
-- Medical terms may be simplified to everyday ${langName} words
-- Every single response must be in ${langName} script, not transliterated Roman
+- NEVER mix languages. Every word must be in ${langName} native script.
+- If the patient replies in another language, still respond only in ${langName}.
+- Medical terms should be simplified to everyday village-level ${langName} words.
+- Do NOT use transliterated Roman script — use the proper native script only.
 
-STYLE:
-- Ask ONE question at a time
-- Keep every question SHORT (under 12 words in ${langName})
-- Use simple, warm, empathetic words a village patient can understand
-- For the SUMMARY stage, return ONLY valid JSON — no other text${ragSection}`;
+CONVERSATION STYLE:
+- You are like a kind, warm doctor's assistant.
+- React to what the patient ACTUALLY said — acknowledge their answer first if needed.
+- Ask ONE specific follow-up question based on what they told you.
+- Keep the question SHORT (under 15 words in ${langName}).
+- Be empathetic — the patient may be anxious or in pain.
+- Ask what a real doctor would naturally ask next, given the patient's exact words.
+
+CRITICAL RULE — NO HARDCODED QUESTIONS:
+- NEVER ask a generic template question like "When did it start, how severe is it?"
+- ALWAYS base your question on the patient's specific answer.
+- If patient says "fever", ask about temperature, chills, timing etc.
+- If patient says "awesome" or something nonsensical, gently re-ask to clarify their main problem.
+- If patient says "chest pain", ask about radiation to arm/jaw, breathing difficulty, sweating.
+- Adapt! Every patient gets a unique conversation.
+
+For the SUMMARY stage only: return ONLY valid JSON — no other text.${ragSection}`;
 }
 
 // ── Summary prompt ────────────────────────────────────────────────────────────
@@ -576,13 +585,16 @@ export async function POST(req: NextRequest) {
     const rag = await fetchRAGContext(ragQuery, getRAGDomain(stage, mode), 3);
     const systemPrompt = buildSystemPrompt(lang, mode, rag.context);
 
-    const conversationHistory = messages
-      .map((m) => `${m.role === "ai" ? "AI" : "Patient"}: ${m.text}`)
-      .join("\n");
 
-    const stageLabel = mode === "ayush"
-      ? stage.replace("ayush_", "Dashavidha — ")
-      : stage;
+    // Extract key context from conversation
+    const lastPatientAnswer = [...messages].reverse().find((m) => m.role === "patient")?.text ?? "";
+    const collectedChiefComplaint = chiefComplaint
+      || messages.find((m) => m.role === "patient" && m.stage === "chief_complaint")?.text
+      || lastPatientAnswer;
+
+    const stageLabel = (mode === "ayush" || mode === ("combined" as string))
+      ? stage.replace("ayush_", "Dashavidha Pariksha — ")
+      : stage.replace(/_/g, " ");
 
     // Script hints to reinforce language for Gemini
     const SCRIPT_EXAMPLES: Record<string, string> = {
@@ -597,17 +609,43 @@ export async function POST(req: NextRequest) {
       mr: "तुम्हाला काय त्रास होतोय?",
     };
     const scriptExample = SCRIPT_EXAMPLES[lang]
-      ? `\nExample of correct ${LANG_NAMES[lang] ?? lang} script: "${SCRIPT_EXAMPLES[lang]}"`
+      ? `\nScript example (use this exact script): "${SCRIPT_EXAMPLES[lang]}"`
       : "";
 
-    const userPrompt = `Current stage: ${stageLabel}
-Mode: ${mode}
-Conversation so far:
-${conversationHistory || "(No conversation yet — this is the first question)"}
+    const conversationHistory = messages
+      .map((m) => `${m.role === "ai" ? "Doctor (AI)" : "Patient"}: ${m.text}`)
+      .join("\n");
 
-CRITICAL: Your response MUST be written ONLY in ${LANG_NAMES[lang] ?? "Hindi"} (${LANG_SCRIPTS[lang] ?? "native script"}).${scriptExample}
-DO NOT respond in Hindi or English if the language is not Hindi or English.
-Ask the next question for this stage. Reply with ONLY the question — no explanation, no prefix, no labels.`;
+    const isFirstQuestion = messages.length === 0;
+
+    const userPrompt = isFirstQuestion
+      ? `You are starting a clinical history-taking session. The patient has just arrived.
+
+STAGE: ${stageLabel}
+TASK: Ask the patient what their main problem is today. Make it welcoming and warm.
+
+LANGUAGE RULE: Reply ONLY in ${LANG_NAMES[lang] ?? "Hindi"}.${scriptExample}
+
+Reply with ONLY the question — nothing else.`
+      : `CURRENT STAGE: ${stageLabel}
+PATIENT'S CHIEF COMPLAINT: ${collectedChiefComplaint || "Not stated yet"}
+PATIENT'S LAST ANSWER: "${lastPatientAnswer}"
+
+FULL CONVERSATION:
+${conversationHistory}
+
+YOUR TASK:
+1. READ the patient's last answer carefully: "${lastPatientAnswer}"
+2. Ask ONE natural follow-up question appropriate for the stage "${stageLabel}"
+3. The question MUST be based on what the patient specifically said — NOT a generic template
+4. If the patient said something unrelated or unclear, gently re-guide them
+5. Think: what would a real doctor naturally ask next, hearing exactly these words?
+
+LANGUAGE RULE: Reply ONLY in ${LANG_NAMES[lang] ?? "Hindi"} native script.${scriptExample}
+NEVER respond in Hindi if the selected language is not Hindi.
+
+Reply with ONLY the question — no label, no prefix, no explanation.`;
+
 
     const geminiResponse = await callGemini(systemPrompt, userPrompt);
 

@@ -12,6 +12,22 @@ import {
 import { Button, Card } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/translations";
+import { usePageSpeaker } from "@/hooks/usePageSpeaker";
+
+// Localized spoken intro for the consent page — in the patient's language
+const CONSENT_SPEECH: Record<string, string> = {
+  hi: "यह आपकी सहमति का पेज है। कृपया नीचे दी गई अनुमतियाँ पढ़ें और सहमति दें। आपकी जानकारी केवल आपके डॉक्टर के साथ साझा की जाएगी।",
+  en: "This is the consent page. Please read the permissions below and agree to continue. Your information will only be shared with your treating doctor.",
+  bn: "এটি আপনার সম্মতির পৃষ্ঠা। নিচের অনুমতিগুলি পড়ুন এবং সম্মতি দিন। আপনার তথ্য শুধুমাত্র আপনার ডাক্তারের সাথে শেয়ার করা হবে।",
+  ta: "இது உங்கள் சம்மதப் பக்கம். கீழே உள்ள அனுமதிகளை படித்து சம்மதிக்கவும். உங்கள் தகவல் உங்கள் மருத்துவருடன் மட்டுமே பகிரப்படும்.",
+  te: "ఇది మీ అనుమతి పేజీ. దయచేసి దిగువ అనుమతులను చదివి అంగీకరించండి. మీ సమాచారం మీ డాక్టర్‌తో మాత్రమే భాగస్వామ్యం చేయబడుతుంది.",
+  mr: "हे तुमच्या संमतीचे पान आहे. कृपया खालील परवानग्या वाचा आणि संमती द्या. तुमची माहिती फक्त तुमच्या डॉक्टरांसोबत शेअर केली जाईल.",
+  gu: "આ તમારી સ્વીકૃતિ પૃષ્ઠ છે. કૃપા કરીને નીચેની પરવાનગી વાંચો અને સ્વીકૃતિ આપો. તમારી માહિતી ફક્ત તમારા ડૉક્ટર સાથે જ શેર કરવામાં આવશે.",
+  kn: "ಇದು ನಿಮ್ಮ ಒಪ್ಪಿಗೆ ಪುಟ. ಕೆಳಗಿನ ಅನುಮತಿಗಳನ್ನು ಓದಿ ಮತ್ತು ಒಪ್ಪಿಗೆ ನೀಡಿ. ನಿಮ್ಮ ಮಾಹಿತಿ ನಿಮ್ಮ ವೈದ್ಯರಿಗೆ ಮಾತ್ರ ಹಂಚಲಾಗುತ್ತದೆ.",
+  ml: "ഇത് നിങ്ങളുടെ സമ്മത പേജ് ആണ്. താഴെ ഉള്ള അനുമതികൾ വായിച്ച് സമ്മതം നൽകുക. നിങ്ങളുടെ വിവരങ്ങൾ നിങ്ങളുടെ ഡോക്ടറുമായി മാത്രം പങ്കിടും.",
+  pa: "ਇਹ ਤੁਹਾਡਾ ਸਹਿਮਤੀ ਪੰਨਾ ਹੈ। ਕਿਰਪਾ ਕਰਕੇ ਹੇਠਾਂ ਦਿੱਤੀਆਂ ਇਜਾਜ਼ਤਾਂ ਪੜ੍ਹੋ ਅਤੇ ਸਹਿਮਤੀ ਦਿਓ। ਤੁਹਾਡੀ ਜਾਣਕਾਰੀ ਕੇਵਲ ਤੁਹਾਡੇ ਡਾਕਟਰ ਨਾਲ ਸਾਂਝੀ ਕੀਤੀ ਜਾਵੇਗੀ।",
+  ur: "یہ آپ کی رضامندی کا صفحہ ہے۔ براہ کرم نیچے دی گئی اجازتیں پڑھیں اور رضامندی دیں۔ آپ کی معلومات صرف آپ کے ڈاکٹر کے ساتھ شیئر کی جائیں گی۔",
+};
 
 interface ConsentItem {
   id: string;
@@ -70,7 +86,8 @@ export default function ConsentPage() {
     abhaLink: false,
     audioRecording: false,
   });
-  const [audioPlaying, setAudioPlaying] = useState(false);
+
+  const { speak, stop, isSpeaking } = usePageSpeaker(lang);
 
   useEffect(() => {
     setLang(sessionStorage.getItem("mk_lang") ?? "hi");
@@ -85,16 +102,20 @@ export default function ConsentPage() {
   }
 
   function handleProceed() {
+    stop(); // stop audio when proceeding
     sessionStorage.setItem("mk_consent", JSON.stringify(checked));
     // Always use combined mode (allopathic + AYUSH stages merged)
     sessionStorage.setItem("mk_mode", "combined");
     router.push("/history");
   }
 
-
   function handlePlayAudio() {
-    setAudioPlaying(true);
-    setTimeout(() => setAudioPlaying(false), 4000);
+    if (isSpeaking) {
+      stop();
+    } else {
+      const text = CONSENT_SPEECH[lang] ?? CONSENT_SPEECH["hi"];
+      speak(text);
+    }
   }
 
   return (
@@ -111,15 +132,15 @@ export default function ConsentPage() {
             aria-label="Play audio explanation"
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-all",
-              audioPlaying
-                ? "bg-brand-600 text-white"
+              isSpeaking
+                ? "bg-brand-600 text-white animate-pulse"
                 : "bg-brand-50 text-brand-700 hover:bg-brand-100"
             )}
           >
-            {audioPlaying ? (
-              <span className="animate-pulse">🔊 Playing...</span>
+            {isSpeaking ? (
+              <span>🔊 {lang === "hi" ? "चल रहा है..." : lang === "pa" ? "ਚੱਲ ਰਿਹਾ ਹੈ..." : "Playing..."}</span>
             ) : (
-              <>🔊 सुनें</>
+              <>{lang === "hi" ? "🔊 सुनें" : lang === "pa" ? "🔊 ਸੁਣੋ" : lang === "bn" ? "🔊 শুনুন" : lang === "ta" ? "🔊 கேளுங்கள்" : lang === "te" ? "🔊 వినండి" : lang === "mr" ? "🔊 ऐका" : lang === "gu" ? "🔊 સાંભળો" : lang === "kn" ? "🔊 ಕೇಳಿ" : lang === "ml" ? "🔊 കേൾക്കുക" : "🔊 Listen"}</>
             )}
           </button>
         }
