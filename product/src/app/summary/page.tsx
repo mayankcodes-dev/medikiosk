@@ -23,11 +23,12 @@ type SummaryStatus = "generating" | "ready";
 
 const PLACEHOLDER_SUMMARY: StructuredSummary = {
   chiefComplaint: "History not recorded — please proceed to doctor",
-  duration: "—",
-  severity: "moderate",
-  character: "—",
-  associatedSymptoms: [],
+  hpi: "—",
   pastHistory: "—",
+  drugAllergy: "—",
+  familyHistory: "—",
+  personalHistory: "—",
+  reviewOfSystems: "—",
   currentMedications: "—",
   suggestedICD10: "",
   redFlags: [],
@@ -162,7 +163,7 @@ export default function SummaryPage() {
   }
 
   // ── Derived values ─────────────────────────────────────────────────────────
-  const sev       = SEV_COLOR[summary.severity?.toLowerCase()] ?? SEV_COLOR.moderate;
+  const sev       = SEV_COLOR[(summary.severity ?? "").toLowerCase()] ?? SEV_COLOR.moderate;
   const redFlags  = summary.redFlags ?? [];
   const abnormal  = docs.flatMap((d) => d.labValues?.filter((lv) => lv.flag === "H" || lv.flag === "L") ?? []);
   const allMeds   = new Set(docs.flatMap((d) => d.medications?.map((m) => m.name) ?? []));
@@ -269,13 +270,15 @@ export default function SummaryPage() {
               {summary.chiefComplaint}
             </p>
             <div className="flex items-center gap-2 mt-2">
-              <span className={cn(
-                "text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5",
-                sev.bg, sev.text
-              )}>
-                <span className={cn("h-2 w-2 rounded-full", sev.dot)} />
-                {summary.severity} severity
-              </span>
+              {summary.severity && (
+                <span className={cn(
+                  "text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5",
+                  sev.bg, sev.text
+                )}>
+                  <span className={cn("h-2 w-2 rounded-full", sev.dot)} />
+                  {summary.severity} severity
+                </span>
+              )}
               {summary.duration && summary.duration !== "—" && (
                 <span className="text-xs text-neutral-500">⏱ {summary.duration}</span>
               )}
@@ -288,64 +291,76 @@ export default function SummaryPage() {
           </div>
         )}
 
-        {/* ── HPI + ASSOCIATED + PAST HISTORY ─────────────────────── */}
+        {/* ── HPI + CLINICAL SECTIONS ───────────────────────────────────── */}
         {!isMock && (
-          <div className="grid grid-cols-2 gap-2.5">
-            {/* History of Present Illness */}
-            <div className="col-span-2 rounded-2xl border border-neutral-200 bg-white p-4">
-              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                📋 History of Present Illness
-              </p>
-              <div className="space-y-1">
-                {[
-                  { label: "Onset", val: summary.character },
-                  { label: "Duration", val: summary.duration },
-                  { label: "Severity", val: summary.severity },
-                  { label: "Medications", val: summary.currentMedications },
-                ].filter((r) => r.val && r.val !== "—").map((r) => (
-                  <div key={r.label} className="flex gap-2 text-xs">
-                    <span className="text-neutral-400 w-20 shrink-0">{r.label}</span>
-                    <span className="text-neutral-800 font-medium">{r.val}</span>
-                  </div>
-                ))}
+          <div className="space-y-2.5">
+            {/* HPI */}
+            {summary.hpi && summary.hpi !== "—" && (
+              <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                  📋 History of Present Illness
+                </p>
+                <p className="text-xs text-neutral-700 leading-snug">{summary.hpi}</p>
+              </div>
+            )}
+
+            {/* Drug / Allergy + Past History side-by-side */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                  💊 Drugs / Allergy
+                </p>
+                <p className="text-xs text-neutral-700 leading-snug">
+                  {summary.drugAllergy || "None reported"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                  🏥 Past History
+                </p>
+                <p className="text-xs text-neutral-700 leading-snug">
+                  {summary.pastHistory || "None reported"}
+                </p>
+                {summary.suggestedICD10 && (
+                  <p className="text-[10px] text-brand-600 font-mono mt-2">
+                    ICD-10: {summary.suggestedICD10}
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Associated Symptoms */}
-            <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                Associated Symptoms
-              </p>
-              {(summary.associatedSymptoms?.length ?? 0) > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {summary.associatedSymptoms.map((s) => (
-                    <span key={s}
-                      className="text-[10px] bg-neutral-100 text-neutral-700 px-2 py-0.5 rounded-full">
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-neutral-400">No associated symptoms</p>
-              )}
+            {/* Family History + Personal History side-by-side */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                  👨‍👩‍👦 Family History
+                </p>
+                <p className="text-xs text-neutral-700 leading-snug">
+                  {summary.familyHistory || "None reported"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                  🧑 Personal History
+                </p>
+                <p className="text-xs text-neutral-700 leading-snug">
+                  {summary.personalHistory || "None reported"}
+                </p>
+              </div>
             </div>
 
-            {/* Past History */}
-            <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                Past History
-              </p>
-              <p className="text-xs text-neutral-700 leading-snug">
-                {summary.pastHistory || "None reported"}
-              </p>
-              {summary.suggestedICD10 && (
-                <p className="text-[10px] text-brand-600 font-mono mt-2">
-                  ICD-10: {summary.suggestedICD10}
+            {/* Review of Systems */}
+            {summary.reviewOfSystems && summary.reviewOfSystems !== "—" && (
+              <div className="rounded-2xl border border-neutral-200 bg-white p-3">
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                  🔍 Review of Systems
                 </p>
-              )}
-            </div>
+                <p className="text-xs text-neutral-700 leading-snug">{summary.reviewOfSystems}</p>
+              </div>
+            )}
           </div>
         )}
+
 
         {/* ── DOCUMENTS TABLE ──────────────────────────────────────── */}
         {docs.length > 0 && (
@@ -450,16 +465,14 @@ export default function SummaryPage() {
           </div>
           <p className="text-xs text-neutral-700 leading-relaxed">
             {!isMock
-              ? `Patient presents with ${summary.chiefComplaint?.toLowerCase()}` +
-                (summary.duration && summary.duration !== "—" ? ` for ${summary.duration}` : "") +
-                (summary.character && summary.character !== "—" ? `. Character: ${summary.character}` : "") +
-                ((summary.associatedSymptoms?.length ?? 0) > 0
-                  ? `. Associated: ${summary.associatedSymptoms.join(", ")}` : "") +
+              ? `Patient presents with ${summary.chiefComplaint?.toLowerCase()}. ` +
+                (summary.hpi && summary.hpi !== "—" ? summary.hpi : "") +
                 (summary.pastHistory && summary.pastHistory !== "—"
-                  ? `. PMH: ${summary.pastHistory}` : "") +
-                (summary.currentMedications && summary.currentMedications !== "—"
-                  ? `. Current medications: ${summary.currentMedications}` : "") +
-                "."
+                  ? ` PMH: ${summary.pastHistory}.` : "") +
+                (summary.drugAllergy && summary.drugAllergy !== "—"
+                  ? ` Medications/Allergies: ${summary.drugAllergy}.` : "") +
+                ((summary.associatedSymptoms?.length ?? 0) > 0
+                  ? ` Associated: ${(summary.associatedSymptoms ?? []).join(", ")}.` : "")
               : "Voice history not recorded. Please review document extracts below."}
           </p>
           {summary.ayushNote && (
