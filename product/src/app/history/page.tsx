@@ -28,16 +28,26 @@ const STAGES: Stage[] = [
   "past_history", "medications",
 ];
 
-const STAGE_LABELS: Record<Stage, string> = {
-  chief_complaint: "मुख्य शिकायत",
-  duration: "समय",
-  character: "प्रकार",
-  severity: "तीव्रता",
-  associated_symptoms: "अन्य लक्षण",
-  past_history: "पुराना इतिहास",
-  medications: "दवाइयां",
-  summary: "सारांश",
-};
+// Multilingual stage labels — all 22 languages gracefully fall back to Hindi
+function getStageLabels(lang: string): Record<Stage, string> {
+  const labels: Record<string, Record<Stage, string>> = {
+    hi: { chief_complaint: "मुख्य शिकायत", duration: "समय", character: "प्रकार", severity: "तीव्रता", associated_symptoms: "अन्य लक्षण", past_history: "पुराना इतिहास", medications: "दवाइयां", summary: "सारांश" },
+    en: { chief_complaint: "Problem", duration: "Duration", character: "Type", severity: "Severity", associated_symptoms: "Symptoms", past_history: "History", medications: "Medicines", summary: "Summary" },
+    ta: { chief_complaint: "பிரச்சினை", duration: "காலம்", character: "வகை", severity: "தீவிரம்", associated_symptoms: "அறிகுறிகள்", past_history: "வரலாறு", medications: "மருந்துகள்", summary: "சுருக்கம்" },
+    te: { chief_complaint: "సమస్య", duration: "వ్యవధి", character: "రకం", severity: "తీవ్రత", associated_symptoms: "లక్షణాలు", past_history: "చరిత్ర", medications: "మందులు", summary: "సారాంశం" },
+    bn: { chief_complaint: "সমস্যা", duration: "সময়কাল", character: "ধরন", severity: "তীব্রতা", associated_symptoms: "উপসর্গ", past_history: "ইতিহাস", medications: "ওষুধ", summary: "সারাংশ" },
+    mr: { chief_complaint: "समस्या", duration: "कालावधी", character: "प्रकार", severity: "तीव्रता", associated_symptoms: "लक्षणे", past_history: "इतिहास", medications: "औषधे", summary: "सारांश" },
+    gu: { chief_complaint: "સમસ્યા", duration: "સમય", character: "પ્રકાર", severity: "તીવ્રતા", associated_symptoms: "લક્ષણો", past_history: "ઇતિહાસ", medications: "દવાઓ", summary: "સારાંશ" },
+    kn: { chief_complaint: "ಸಮಸ್ಯೆ", duration: "ಅವಧಿ", character: "ಪ್ರಕಾರ", severity: "ತೀವ್ರತೆ", associated_symptoms: "ಲಕ್ಷಣಗಳು", past_history: "ಇತಿಹಾಸ", medications: "ಔಷಧಗಳು", summary: "ಸಾರಾಂಶ" },
+    ml: { chief_complaint: "പ്രശ്നം", duration: "ദൈർഘ്യം", character: "തരം", severity: "തീവ്രത", associated_symptoms: "ലക്ഷണങ്ങൾ", past_history: "ചരിത്രം", medications: "മരുന്നുകൾ", summary: "സംഗ്രഹം" },
+    pa: { chief_complaint: "ਸਮੱਸਿਆ", duration: "ਸਮਾਂ", character: "ਕਿਸਮ", severity: "ਤੀਬਰਤਾ", associated_symptoms: "ਲੱਛਣ", past_history: "ਇਤਿਹਾਸ", medications: "ਦਵਾਈਆਂ", summary: "ਸਾਰ" },
+    or: { chief_complaint: "ସମସ୍ୟା", duration: "ସମୟ", character: "ପ୍ରକାର", severity: "ତୀବ୍ରତା", associated_symptoms: "ଲକ୍ଷଣ", past_history: "ଇତିହାସ", medications: "ଔଷଧ", summary: "ସାରାଂଶ" },
+    as: { chief_complaint: "সমস্যা", duration: "সময়", character: "ধৰণ", severity: "তীব্ৰতা", associated_symptoms: "লক্ষণ", past_history: "ইতিহাস", medications: "ঔষধ", summary: "সাৰাংশ" },
+    ur: { chief_complaint: "مسئلہ", duration: "مدت", character: "قسم", severity: "شدت", associated_symptoms: "علامات", past_history: "تاریخ", medications: "دوائیں", summary: "خلاصہ" },
+    sa: { chief_complaint: "मुख्यसमस्या", duration: "कालः", character: "प्रकारः", severity: "तीव्रता", associated_symptoms: "लक्षणानि", past_history: "इतिहासः", medications: "औषधानि", summary: "सारः" },
+  };
+  return labels[lang] ?? labels["hi"];
+}
 
 // Touch option chips per stage
 const TOUCH_OPTIONS: Partial<Record<Stage, string[]>> = {
@@ -285,6 +295,8 @@ export default function HistoryPage() {
         setAiLoading(false);
       }
     } else {
+      setCurrentQuestion(""); // clear stale question immediately
+      setStage(nextStage as Stage);
       await fetchNextQuestion(nextStage as Stage, newMessages);
     }
   }, [selectedChips, patientInput, messages, currentQuestion, stage, stageIndex, lang, fetchNextQuestion]);
@@ -386,7 +398,7 @@ export default function HistoryPage() {
                   : "bg-neutral-100 text-neutral-400"
               )}
             >
-              {i < stageIndex ? "✓" : i + 1} {STAGE_LABELS[s]}
+              {i < stageIndex ? "✓" : i + 1} {getStageLabels(lang)[s]}
             </span>
           ))}
         </div>

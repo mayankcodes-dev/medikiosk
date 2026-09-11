@@ -425,11 +425,6 @@ export default function LoginPage() {
       />
 
       <KioskBody className="space-y-4">
-        {/* Logo */}
-        <div className="flex justify-center mb-1">
-          <Image src="/logo.jpg" alt="MediKiosk" width={52} height={52}
-            className="rounded-full border border-brand-100" />
-        </div>
 
         {/* ── THREE PRIMARY options (big cards, equal visual weight) ── */}
         <div className="grid grid-cols-1 gap-3">

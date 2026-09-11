@@ -6,11 +6,16 @@ export const metadata: Metadata = {
   description:
     "Voice-first AI kiosk that takes your medical history in your language before you see the doctor. ABDM certified. 22 Indian languages.",
   metadataBase: new URL("https://medikiosk.mayankcodes.dev"),
+  icons: {
+    icon: "/favicon.jpg",
+    apple: "/favicon.jpg",
+  },
   openGraph: {
     title: "MediKiosk — AI Healthcare for Every Indian",
     description: "Voice-first clinical history kiosk in 22 Indian languages.",
     url: "https://medikiosk.mayankcodes.dev",
     siteName: "MediKiosk",
+    images: [{ url: "/favicon.jpg", width: 256, height: 256, alt: "MediKiosk" }],
     locale: "en_IN",
     type: "website",
   },

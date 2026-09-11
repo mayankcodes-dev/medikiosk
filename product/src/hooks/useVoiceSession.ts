@@ -247,6 +247,11 @@ export function useVoiceSession({
 
     recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
       if (e.error === "no-speech") setState("idle");
+      else if (e.error === "network") {
+        // Network error usually means regional language not supported by Web Speech
+        onError?.("माइक नहीं चला / Mic unavailable for this language. Please type your answer.");
+        setState("error");
+      }
       else { onError?.(`Mic error: ${e.error}`); setState("error"); }
     };
 
@@ -255,22 +260,38 @@ export function useVoiceSession({
     recognition.start();
   }, [engine, lang, webSpeechInfo, onError, onTranscript, state]);
 
-  // ── Stop listening (Bhashini: stop recorder → send to API) ─────
+  // ── Stop listening (Bhashini: stop recorder → POST to server proxy) ─────
   const stopListening = useCallback(async () => {
-    // Bhashini: stop MediaRecorder → POST audio
+    // Bhashini: stop MediaRecorder → POST audio to server-side ASR route
     if (engine === "bhashini" && recorderRef.current) {
       setState("processing");
       try {
         const blob = await recorderRef.current.stop();
         recorderRef.current = null;
-        const text = await bhashiniASR(blob, lang);
-        if (text) {
-          setTranscript(text);
-          onTranscript(text);
+
+        // Convert blob → base64 for server proxy
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8 = new Uint8Array(arrayBuffer);
+        let binary = "";
+        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
+        const audioBase64 = btoa(binary);
+
+        const res = await fetch("/api/bhashini/asr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ audioBase64, mimeType: blob.type || "audio/webm", lang }),
+        });
+        if (res.ok) {
+          const { transcript: text } = await res.json();
+          if (text) { setTranscript(text); onTranscript(text); }
+        } else {
+          // Fall back to direct client-side call
+          const text = await bhashiniASR(blob, lang);
+          if (text) { setTranscript(text); onTranscript(text); }
         }
       } catch (e) {
         console.warn("[Voice] Bhashini ASR failed:", e);
-        onError?.("Voice recognition failed. Please try again.");
+        onError?.("आवाज़ पहचान नहीं हुई। कृपया टाइप करें / Voice recognition failed. Please type.");
       } finally {
         setState("idle");
       }
