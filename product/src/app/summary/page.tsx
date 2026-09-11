@@ -153,20 +153,12 @@ export default function SummaryPage() {
   const allMeds  = Array.from(new Set(docs.flatMap((d) => d.medications?.map((m) => m.name) ?? [])));
   const allDx    = docs.flatMap((d) => d.diagnoses ?? []);
 
-  let confidence = 70;
-  if (!isMock) confidence += 15;
-  if (docs.length > 0) confidence += 8;
-  if (redFlags.length === 0) confidence += 5;
-  if (isAyush && summary.prakriti) confidence += 4;
-  confidence = Math.min(confidence, 98);
-
   const now = new Date().toLocaleDateString("en-IN", {
     day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
   const patientAge = patient.yearOfBirth
     ? `${new Date().getFullYear() - parseInt(patient.yearOfBirth)}y` : "";
-  const confColor = confidence >= 85 ? "bg-green-500" : confidence >= 70 ? "bg-amber-500" : "bg-red-500";
-  const confText  = confidence >= 85 ? "text-green-600" : confidence >= 70 ? "text-amber-600" : "text-red-600";
+
 
   return (
     <KioskScreen>
@@ -194,10 +186,9 @@ export default function SummaryPage() {
             <span className="bg-amber-400 text-amber-900 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide block">
               Pending Review
             </span>
-            <p className="text-xs text-brand-300 mt-1.5">
-              AI Confidence: <span className="text-white font-bold">{confidence}%</span>
-            </p>
+            <p className="text-xs text-brand-300 mt-1.5">{now}</p>
           </div>
+
         </div>
 
         {/* 2. PATIENT CARD */}
@@ -497,50 +488,124 @@ export default function SummaryPage() {
           )}
         </div>
 
-        {/* 9. PATIENT CONSENT + CONFIDENCE */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-neutral-200 bg-white p-3">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">🔒 Patient Consent</p>
-            <div className="space-y-1">
-              {["Shared with treating physician only", "ABDM / DPDP 2023 compliant", "No raw Aadhaar stored"].map((c) => (
-                <p key={c} className="text-[10px] text-neutral-600 flex items-start gap-1.5">
-                  <span className="text-green-500 shrink-0 mt-0.5">✓</span> {c}
-                </p>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-neutral-200 bg-white p-3 flex flex-col items-center justify-center gap-1">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest text-center">AI Confidence</p>
-            <p className={cn("text-3xl font-black", confText)}>{confidence}%</p>
-            <div className="w-full bg-neutral-100 rounded-full h-2">
-              <div className={cn("h-2 rounded-full transition-all duration-1000", confColor)} style={{ width: `${confidence}%` }} />
-            </div>
-            <p className="text-[9px] text-neutral-400 text-center leading-tight">
-              Based on history completeness + document quality
-            </p>
+        {/* 9. PATIENT CONSENT */}
+        <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">🔒 Patient Consent &amp; Privacy</p>
+          <div className="grid grid-cols-3 gap-1">
+            {["Shared with treating physician only", "ABDM / DPDP 2023 compliant", "No raw Aadhaar stored"].map((c) => (
+              <p key={c} className="text-[10px] text-neutral-600 flex items-start gap-1.5">
+                <span className="text-green-500 shrink-0 mt-0.5">✓</span> {c}
+              </p>
+            ))}
           </div>
         </div>
 
-        {/* Next for physician */}
-        <div className="bg-neutral-50 rounded-2xl border border-neutral-200 p-3 flex items-center gap-3">
-          <span className="text-2xl shrink-0">👨‍⚕️</span>
-          <div>
-            <p className="text-xs font-bold text-neutral-700">Next for Physician</p>
-            <p className="text-[10px] text-neutral-400 mt-0.5">
-              This record will appear on your doctor&apos;s screen.
-              {redFlags.length > 0 && " ⚠ Red flags detected — priority review recommended."}
-            </p>
-          </div>
-        </div>
+        <button
+          onClick={() => {
+            const lines: string[] = [];
+            lines.push("══════════════════════════════════════════════════════");
+            lines.push("            MEDIKIOSK — CLINICAL INTAKE RECORD");
+            lines.push("══════════════════════════════════════════════════════");
+            lines.push(`Patient : ${patient.name ?? "—"}   |   Gender: ${patient.gender ?? "—"}   |   ABHA: ${patient.abhaNumber ?? "—"}`);
+            lines.push(`Language: ${lang.toUpperCase()}   |   Mode: ${isAyush ? "AYUSH + Standard" : "Standard"}   |   Date: ${new Date().toLocaleDateString("en-IN")}`);
+            lines.push("──────────────────────────────────────────────────────");
+            if (!isMock) {
+              lines.push("CHIEF COMPLAINT");
+              lines.push(summary.chiefComplaint ?? "—");
+              if (summary.severity) lines.push(`Severity: ${summary.severity}${summary.duration ? `  ·  Duration: ${summary.duration}` : ""}`);
+              lines.push("");
+              lines.push("HISTORY OF PRESENT ILLNESS");
+              lines.push(summary.hpi ?? "—");
+              if (summary.character) lines.push(`Character: ${summary.character}`);
+              if ((summary.associatedSymptoms?.length ?? 0) > 0) lines.push(`Associated: ${(summary.associatedSymptoms ?? []).join(", ")}`);
+              lines.push("");
+              lines.push("PAST HISTORY");
+              lines.push(summary.pastHistory ?? "—");
+              lines.push("");
+              lines.push("DRUG / ALLERGY");
+              lines.push(summary.drugAllergy ?? "—");
+              lines.push("");
+              lines.push("CURRENT MEDICATIONS");
+              lines.push(summary.currentMedications ?? "—");
+              lines.push("");
+              lines.push("FAMILY HISTORY");
+              lines.push(summary.familyHistory ?? "—");
+              lines.push("");
+              lines.push("PERSONAL HISTORY");
+              lines.push(summary.personalHistory ?? "—");
+              lines.push("");
+              lines.push("REVIEW OF SYSTEMS");
+              lines.push(summary.reviewOfSystems ?? "—");
+              lines.push("");
+              if (isAyush) {
+                lines.push("──────────────────────────────────────────────────────");
+                lines.push("AYUSH DASHAVIDHA PARIKSHA");
+                lines.push(`Prakriti        : ${summary.prakriti ?? "Not assessed"}`);
+                lines.push(`Vikriti         : ${summary.vikriti ?? "Not assessed"}`);
+                lines.push(`Agni            : ${summary.agniType ?? "Not assessed"}`);
+                lines.push(`Koshtha         : ${summary.koshtha ?? "Not assessed"}`);
+                lines.push(`Ahara-Vihara    : ${summary.aharaVihara ?? "Not assessed"}`);
+                lines.push(`Nidana          : ${summary.nidana ?? "Not assessed"}`);
+                lines.push(`Samprapti       : ${summary.samprapti ?? "Not assessed"}`);
+                if (summary.ayushNote) lines.push(`Clinical Note   : ${summary.ayushNote}`);
+                lines.push("");
+              }
+            } else {
+              lines.push("⚠ Voice history not completed — see documents below.");
+              lines.push("");
+            }
+            if (docs.length > 0) {
+              lines.push("──────────────────────────────────────────────────────");
+              lines.push("DOCUMENTS UPLOADED & EXTRACTED");
+              docs.forEach((d, i) => {
+                lines.push(`${i + 1}. ${d.docType.toUpperCase()}  [${d.confidence}]${d.date ? `  Date: ${d.date}` : ""}${d.hospitalName ? `  Hospital: ${d.hospitalName}` : ""}`);
+                if (d.diagnoses?.length) lines.push(`   Diagnoses: ${d.diagnoses.join(", ")}`);
+                if (d.medications?.length) lines.push(`   Medications: ${d.medications.map((m) => `${m.name} ${m.dose} ${m.frequency}`).join("; ")}`);
+                const abnLab = d.labValues?.filter((lv) => lv.flag === "H" || lv.flag === "L") ?? [];
+                if (abnLab.length) lines.push(`   Abnormal Labs: ${abnLab.map((lv) => `${lv.test} ${lv.value} ${lv.unit} [${lv.flag}]`).join(", ")}`);
+              });
+              lines.push("");
+            }
+            if (redFlags.length > 0) {
+              lines.push("──────────────────────────────────────────────────────");
+              lines.push(`RED FLAGS (${redFlags.length > 1 ? "HIGH RISK" : "MODERATE"})`);
+              redFlags.forEach((f) => lines.push(`⚠ ${f}`));
+              lines.push("");
+            }
+            lines.push("──────────────────────────────────────────────────────");
+            lines.push("AI GENERATED CLINICAL SUMMARY (For Physician — DRAFT)");
+            lines.push(!isMock
+              ? `Patient${patient.name ? ` ${patient.name}` : ""}${patientAge ? ` (${patientAge})` : ""} presents with ${summary.chiefComplaint?.toLowerCase()}. `
+                + (summary.hpi && summary.hpi !== "—" ? summary.hpi + " " : "")
+                + (summary.pastHistory && summary.pastHistory !== "—" ? `PMHx: ${summary.pastHistory}. ` : "")
+                + (summary.drugAllergy && summary.drugAllergy !== "—" ? `Medications/Allergies: ${summary.drugAllergy}.` : "")
+              : "Voice history not recorded. Review document extracts above.");
+            lines.push("");
+            lines.push("⚠ AI-generated draft — must be verified by physician before clinical use");
+            lines.push("──────────────────────────────────────────────────────");
+            lines.push("🔒 Encrypted · ABDM Compliant · Shared with treating doctor only");
+            lines.push("══════════════════════════════════════════════════════");
 
-        <button onClick={() => window.print()}
+            const reportText = lines.join("\n");
+            const win = window.open("", "_blank", "width=800,height=900");
+            if (win) {
+              win.document.write(`<html><head><title>MediKiosk Clinical Record</title><style>
+                body { font-family: 'Courier New', monospace; font-size: 13px; margin: 24px; line-height: 1.6; background: #fff; color: #111; }
+                pre { white-space: pre-wrap; word-wrap: break-word; }
+                @media print { body { margin: 0; } }
+              </style></head><body><pre>${reportText.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</pre>
+              <script>window.onload=function(){window.print();}<\/script></body></html>`);
+              win.document.close();
+            }
+          }}
           className="w-full border border-neutral-200 text-neutral-500 text-sm font-semibold py-2.5 rounded-2xl hover:bg-neutral-50 transition-colors flex items-center justify-center gap-2">
-          🖨️ Print Clinical Record
+          🖨️ Generate &amp; Print Clinical Report
         </button>
 
         <p className="text-[10px] text-neutral-400 text-center pb-2">
           🔒 Encrypted · Shared only with treating doctor · ABDM Compliant
         </p>
+
       </KioskBody>
 
       <KioskFooter>

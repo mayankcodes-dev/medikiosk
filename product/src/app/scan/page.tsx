@@ -70,7 +70,6 @@ export default function ScanPage() {
       const files = Array.from(e.target.files ?? []);
       if (!files.length) return;
 
-      // Process first file immediately; queue the rest for after
       const file = files[0];
 
       // 100 MB size limit
@@ -79,10 +78,26 @@ export default function ScanPage() {
         return;
       }
 
+      // Detect MIME — some browsers leave file.type blank for PDFs
+      let mime = file.type || "";
+      if (!mime || mime === "application/octet-stream") {
+        const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+        if (ext === "pdf") mime = "application/pdf";
+        else if (["jpg", "jpeg"].includes(ext)) mime = "image/jpeg";
+        else if (ext === "png") mime = "image/png";
+        else if (ext === "webp") mime = "image/webp";
+        else mime = "image/jpeg"; // safe default
+      }
+
       setFileName(file.name);
-      const preview = URL.createObjectURL(file);
-      setImagePreview(preview);
-      setCapturedMime(file.type || "image/jpeg");
+      setCapturedMime(mime);
+
+      // For PDFs show a placeholder preview; for images show a blob URL
+      if (mime === "application/pdf") {
+        setImagePreview(""); // no image preview for PDF
+      } else {
+        setImagePreview(URL.createObjectURL(file));
+      }
 
       const b64 = await fileToBase64(file);
       setCapturedImage(b64);
@@ -94,6 +109,7 @@ export default function ScanPage() {
     },
     [fileToBase64]
   );
+
 
   // ── Send to Gemini Vision API ────────────────────────────────
   const handleExtract = useCallback(async () => {
@@ -289,13 +305,13 @@ export default function ScanPage() {
         />
         <KioskBody className="flex flex-col items-center gap-4">
           {/* Preview */}
-          {imagePreview && (
+          {(imagePreview || capturedMime === "application/pdf") && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="w-full rounded-2xl overflow-hidden border-2 border-neutral-200 bg-neutral-100"
             >
-              {capturedMime.includes("pdf") ? (
+              {capturedMime === "application/pdf" ? (
                 <div className="p-8 flex flex-col items-center justify-center text-center bg-white">
                   <div className="w-16 h-16 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-3xl mb-3 shadow-inner">
                     📄
@@ -309,11 +325,12 @@ export default function ScanPage() {
                 </div>
               ) : (
                 <img
-                  src={imagePreview}
+                  src={imagePreview ?? ""}
                   alt="Document preview"
                   className="w-full max-h-72 object-contain"
                 />
               )}
+
             </motion.div>
           )}
 

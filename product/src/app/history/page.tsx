@@ -25,19 +25,19 @@ type Stage =
   | "ayush_koshtha" | "ayush_ahara_vihara" | "ayush_nidana" | "ayush_samprapti"
   | "summary";
 
-const ALLOPATHIC_STAGES: Stage[] = [
-  "chief_complaint", "hpi",
-  "past_history", "drug_allergy",
-  "family_history", "personal_history", "review_of_systems",
-];
-
-const AYUSH_STAGES: Stage[] = [
+// Single combined interview — allopathic clinical + AYUSH Dashavidha Pariksha
+const COMBINED_STAGES: Stage[] = [
   "chief_complaint", "hpi",
   "past_history", "drug_allergy",
   "family_history", "personal_history", "review_of_systems",
   "ayush_prakriti", "ayush_vikriti", "ayush_agni",
   "ayush_koshtha", "ayush_ahara_vihara", "ayush_nidana", "ayush_samprapti",
 ];
+
+// Kept as aliases so API calls still work (chat route accepts mode string)
+const ALLOPATHIC_STAGES = COMBINED_STAGES;
+const AYUSH_STAGES = COMBINED_STAGES;
+
 
 // Multilingual stage labels
 function getStageLabels(lang: string): Record<Stage, string> {
@@ -145,30 +145,184 @@ function getStageLabels(lang: string): Record<Stage, string> {
   return labels[lang] ?? labels["hi"];
 }
 
-// Touch option chips per stage
-const TOUCH_OPTIONS: Partial<Record<Stage, string[]>> = {
-  chief_complaint: ["बुखार / Fever", "दर्द / Pain", "उल्टी / Vomiting",
-    "सांस / Breathing", "चक्कर / Dizziness", "कमज़ोरी / Weakness",
-    "खांसी / Cough", "पेट / Stomach"],
-  hpi: ["आज / Today", "2–3 दिन / 2–3 Days", "1 हफ्ता / 1 Week",
-    "1 महीना / 1 Month", "जलन / Burning", "दबाव / Pressing", "हल्का / Mild", "तेज़ / Severe"],
-  past_history: ["मधुमेह / Diabetes", "BP", "हृदय / Heart", "टीबी / TB",
-    "ऑपरेशन / Surgery", "कुछ नहीं / Nothing"],
-  drug_allergy: ["हाँ, दवाई / Yes, medicine", "नहीं / No", "पेनिसिलिन / Penicillin",
-    "सल्फा / Sulfa", "Aspirin", "कुछ नहीं / Nothing"],
-  family_history: ["मधुमेह / Diabetes", "BP", "हृदय / Heart", "कैंसर / Cancer",
-    "टीबी / TB", "कुछ नहीं / Nothing"],
-  personal_history: ["धूम्रपान / Smoking", "शराब / Alcohol", "तंबाकू / Tobacco",
-    "शाकाहारी / Vegetarian", "नहीं / None"],
-  review_of_systems: ["आँख / Eyes", "कान / Ears", "छाती / Chest", "पेट / Stomach",
-    "जोड़ / Joints", "कोई नहीं / None"],
-  ayush_prakriti: ["वात / Vata", "पित्त / Pitta", "कफ / Kapha", "वात-पित्त", "पित्त-कफ"],
-  ayush_vikriti: ["बेचैन / Anxious", "गर्म / Hot", "भारीपन / Heavy"],
-  ayush_agni: ["अनियमित / Irregular", "तेज़ / Strong", "धीमी / Slow"],
-  ayush_koshtha: ["नियमित / Regular", "कभी-कभी / Occasional", "कब्ज़ / Constipated"],
-  ayush_ahara_vihara: ["गर्म खाना / Hot food", "तीखा / Spicy", "देर से सोना / Late sleep"],
-  ayush_nidana: ["तनाव / Stress", "ठंड / Cold", "बासी खाना / Stale food"],
-  ayush_samprapti: ["खाने के बाद / After food", "सुबह / Morning", "रात / Night"],
+// Fully localized touch option chips per stage per language
+const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
+  hi: {
+    chief_complaint: ["बुखार", "दर्द", "उल्टी", "सांस में तकलीफ", "चक्कर", "कमज़ोरी", "खांसी", "पेट दर्द"],
+    hpi: ["आज से", "2–3 दिन से", "1 हफ्ते से", "1 महीने से", "जलन", "दबाव", "हल्का", "तेज़"],
+    past_history: ["मधुमेह", "बीपी", "हृदय रोग", "टीबी", "ऑपरेशन", "कोई नहीं"],
+    drug_allergy: ["हाँ, दवाई लेता हूँ", "नहीं", "पेनिसिलिन", "सल्फा", "एस्पिरिन", "कोई नहीं"],
+    family_history: ["मधुमेह", "बीपी", "हृदय रोग", "कैंसर", "टीबी", "कोई नहीं"],
+    personal_history: ["धूम्रपान", "शराब", "तंबाकू", "शाकाहारी", "कोई नहीं"],
+    review_of_systems: ["आँख", "कान", "छाती", "पेट", "जोड़", "कोई नहीं"],
+    ayush_prakriti: ["वात", "पित्त", "कफ", "वात-पित्त", "पित्त-कफ"],
+    ayush_vikriti: ["बेचैनी", "गर्मी", "भारीपन"],
+    ayush_agni: ["अनियमित", "तेज़", "धीमी"],
+    ayush_koshtha: ["नियमित", "कभी-कभी", "कब्ज़"],
+    ayush_ahara_vihara: ["गर्म खाना", "तीखा खाना", "देर से सोना"],
+    ayush_nidana: ["तनाव", "ठंड लगना", "बासी खाना"],
+    ayush_samprapti: ["खाने के बाद", "सुबह", "रात को"],
+  },
+  en: {
+    chief_complaint: ["Fever", "Pain", "Vomiting", "Breathing difficulty", "Dizziness", "Weakness", "Cough", "Stomach pain"],
+    hpi: ["Today", "2–3 Days", "1 Week", "1 Month", "Burning", "Pressing", "Mild", "Severe"],
+    past_history: ["Diabetes", "High BP", "Heart disease", "TB", "Surgery", "None"],
+    drug_allergy: ["Yes, on medication", "No", "Penicillin", "Sulfa", "Aspirin", "None"],
+    family_history: ["Diabetes", "High BP", "Heart disease", "Cancer", "TB", "None"],
+    personal_history: ["Smoking", "Alcohol", "Tobacco", "Vegetarian", "None"],
+    review_of_systems: ["Eyes", "Ears", "Chest", "Stomach", "Joints", "None"],
+    ayush_prakriti: ["Vata", "Pitta", "Kapha", "Vata-Pitta", "Pitta-Kapha"],
+    ayush_vikriti: ["Anxious/Restless", "Hot/Inflamed", "Heavy/Sluggish"],
+    ayush_agni: ["Irregular appetite", "Strong appetite", "Weak appetite"],
+    ayush_koshtha: ["Regular bowels", "Occasional", "Constipated"],
+    ayush_ahara_vihara: ["Hot food", "Spicy food", "Late sleep"],
+    ayush_nidana: ["Stress", "Cold exposure", "Stale food"],
+    ayush_samprapti: ["After eating", "Morning", "Night"],
+  },
+  bn: {
+    chief_complaint: ["জ্বর", "ব্যথা", "বমি", "শ্বাসকষ্ট", "মাথা ঘোরা", "দুর্বলতা", "কাশি", "পেট ব্যথা"],
+    hpi: ["আজ থেকে", "২–৩ দিন", "১ সপ্তাহ", "১ মাস", "জ্বালাপোড়া", "চাপ", "হালকা", "তীব্র"],
+    past_history: ["ডায়াবেটিস", "উচ্চ রক্তচাপ", "হৃদরোগ", "যক্ষ্মা", "অপারেশন", "কোনোটি নয়"],
+    drug_allergy: ["হ্যাঁ, ওষুধ খাই", "না", "পেনিসিলিন", "সালফা", "অ্যাসপিরিন", "কোনোটি নয়"],
+    family_history: ["ডায়াবেটিস", "উচ্চ রক্তচাপ", "হৃদরোগ", "ক্যান্সার", "যক্ষ্মা", "কোনোটি নয়"],
+    personal_history: ["ধূমপান", "মদ্যপান", "তামাক", "নিরামিষ", "কোনোটি নয়"],
+    review_of_systems: ["চোখ", "কান", "বুক", "পেট", "জয়েন্ট", "কোনোটি নয়"],
+    ayush_prakriti: ["বাত", "পিত্ত", "কফ", "বাত-পিত্ত", "পিত্ত-কফ"],
+    ayush_vikriti: ["অস্থিরতা", "গরম/প্রদাহ", "ভারীভাব"],
+    ayush_agni: ["অনিয়মিত ক্ষুধা", "তীব্র ক্ষুধা", "দুর্বল ক্ষুধা"],
+    ayush_koshtha: ["নিয়মিত", "মাঝেমধ্যে", "কোষ্ঠকাঠিন্য"],
+    ayush_ahara_vihara: ["গরম খাবার", "ঝাল খাবার", "দেরিতে ঘুমানো"],
+    ayush_nidana: ["মানসিক চাপ", "ঠান্ডা লাগা", "বাসি খাবার"],
+    ayush_samprapti: ["খাওয়ার পরে", "সকালে", "রাতে"],
+  },
+  ta: {
+    chief_complaint: ["காய்ச்சல்", "வலி", "வாந்தி", "மூச்சுத்திணறல்", "தலைசுற்றல்", "சோர்வு", "இருமல்", "வயிற்றுவலி"],
+    hpi: ["இன்று", "2–3 நாட்கள்", "1 வாரம்", "1 மாதம்", "எரிச்சல்", "அழுத்தம்", "மிதமானது", "தீவிரம்"],
+    past_history: ["நீரிழிவு", "உயர் ரத்த அழுத்தம்", "இதய நோய்", "காசநோய்", "அறுவை சிகிச்சை", "எதுவும் இல்லை"],
+    drug_allergy: ["ஆம், மருந்து உட்கொள்கிறேன்", "இல்லை", "பெனிசிலின்", "சல்பா", "அஸ்பிரின்", "எதுவும் இல்லை"],
+    family_history: ["நீரிழிவு", "உயர் ரத்த அழுத்தம்", "இதய நோய்", "புற்றுநோய்", "காசநோய்", "எதுவும் இல்லை"],
+    personal_history: ["புகைப்பிடித்தல்", "மது", "புகையிலை", "சைவம்", "எதுவும் இல்லை"],
+    review_of_systems: ["கண்கள்", "காதுகள்", "நெஞ்சு", "வயிறு", "மூட்டுகள்", "எதுவும் இல்லை"],
+    ayush_prakriti: ["வாத", "பித்த", "கப", "வாத-பித்த", "பித்த-கப"],
+    ayush_vikriti: ["பதட்டம்", "வெப்பம்/அழற்சி", "கனமான உணர்வு"],
+    ayush_agni: ["ஒழுங்கற்ற பசி", "வலுவான பசி", "பலவீனமான பசி"],
+    ayush_koshtha: ["சீரான மலம்", "அவ்வப்போது", "மலச்சிக்கல்"],
+    ayush_ahara_vihara: ["சூடான உணவு", "காரமான உணவு", "தாமதமாக தூக்கம்"],
+    ayush_nidana: ["மன அழுத்தம்", "குளிரில் இருத்தல்", "கெட்ட உணவு"],
+    ayush_samprapti: ["சாப்பிட்ட பிறகு", "காலையில்", "இரவில்"],
+  },
+  te: {
+    chief_complaint: ["జ్వరం", "నొప్పి", "వాంతులు", "శ్వాస ఇబ్బంది", "తల తిరగడం", "బలహీనత", "దగ్గు", "పొట్ట నొప్పి"],
+    hpi: ["ఈరోజు", "2–3 రోజులు", "1 వారం", "1 నెల", "మంట", "ఒత్తిడి", "తేలికగా", "తీవ్రంగా"],
+    past_history: ["మధుమేహం", "అధిక BP", "గుండె జబ్బు", "టీబీ", "ఆపరేషన్", "ఏదీ లేదు"],
+    drug_allergy: ["అవును, మందులు వాడుతున్నాను", "లేదు", "పెనిసిలిన్", "సల్ఫా", "ఆస్పిరిన్", "ఏదీ లేదు"],
+    family_history: ["మధుమేహం", "అధిక BP", "గుండె జబ్బు", "కేన్సర్", "టీబీ", "ఏదీ లేదు"],
+    personal_history: ["ధూమపానం", "మద్యపానం", "పొగాకు", "శాకాహారి", "ఏదీ లేదు"],
+    review_of_systems: ["కళ్ళు", "చెవులు", "గుండె/ఛాతీ", "పొట్ట", "కీళ్ళు", "ఏదీ లేదు"],
+    ayush_prakriti: ["వాత", "పిత్త", "కఫ", "వాత-పిత్త", "పిత్త-కఫ"],
+    ayush_vikriti: ["ఆందోళన", "వేడి/వాపు", "భారంగా అనిపించడం"],
+    ayush_agni: ["అనిత్య ఆకలి", "బలమైన ఆకలి", "బలహీన ఆకలి"],
+    ayush_koshtha: ["సక్రమ మలం", "అప్పుడప్పుడు", "మలబద్ధకం"],
+    ayush_ahara_vihara: ["వేడి ఆహారం", "కారంగా", "ఆలస్యంగా నిద్ర"],
+    ayush_nidana: ["ఒత్తిడి", "చలి", "పాత ఆహారం"],
+    ayush_samprapti: ["తిన్న తర్వాత", "ఉదయం", "రాత్రి"],
+  },
+  mr: {
+    chief_complaint: ["ताप", "दुखणे", "उलटी", "श्वास घेणे कठीण", "चक्कर", "अशक्तपणा", "खोकला", "पोटदुखी"],
+    hpi: ["आजपासून", "2–3 दिवसांपासून", "1 आठवड्यापासून", "1 महिन्यापासून", "जळजळ", "दाब", "सौम्य", "तीव्र"],
+    past_history: ["मधुमेह", "उच्च रक्तदाब", "हृदयरोग", "क्षयरोग", "शस्त्रक्रिया", "काहीही नाही"],
+    drug_allergy: ["हो, औषधे घेतो", "नाही", "पेनिसिलिन", "सल्फा", "अॅस्पिरिन", "काहीही नाही"],
+    family_history: ["मधुमेह", "उच्च रक्तदाब", "हृदयरोग", "कर्करोग", "क्षयरोग", "काहीही नाही"],
+    personal_history: ["धूम्रपान", "मद्यपान", "तंबाखू", "शाकाहारी", "काहीही नाही"],
+    review_of_systems: ["डोळे", "कान", "छाती", "पोट", "सांधे", "काहीही नाही"],
+    ayush_prakriti: ["वात", "पित्त", "कफ", "वात-पित्त", "पित्त-कफ"],
+    ayush_vikriti: ["अस्वस्थता", "उष्णता", "जडपणा"],
+    ayush_agni: ["अनियमित भूक", "तीव्र भूक", "कमी भूक"],
+    ayush_koshtha: ["नियमित", "अधूनमधून", "बद्धकोष्ठता"],
+    ayush_ahara_vihara: ["गरम अन्न", "मसालेदार", "उशिरा झोप"],
+    ayush_nidana: ["ताण", "थंडी", "शिळे अन्न"],
+    ayush_samprapti: ["जेवणानंतर", "सकाळी", "रात्री"],
+  },
+  gu: {
+    chief_complaint: ["તાવ", "દર્દ", "ઉલ્ટી", "શ્વાસ લેવામાં તકલીફ", "ચક્કર", "નબળાઈ", "ઉધરસ", "પેટ દર્દ"],
+    hpi: ["આજથી", "2–3 દિવસ", "1 અઠવાડિયું", "1 મહિનો", "બળતરા", "દબાણ", "હળવો", "તીવ્ર"],
+    past_history: ["ડાયાબિટીસ", "ઉચ્ચ BP", "હૃદય રોગ", "ટીબી", "ઓપરેશન", "કોઈ નહીં"],
+    drug_allergy: ["હા, દવા લઉ છું", "ના", "પેનિસિલિન", "સલ્ફા", "એસ્પિરિન", "કોઈ નહીં"],
+    family_history: ["ડાયાબિટીસ", "ઉચ્ચ BP", "હૃદય રોગ", "કેન્સર", "ટીબી", "કોઈ નહીં"],
+    personal_history: ["ધૂમ્રપાન", "દારૂ", "તમાકુ", "શાકાહારી", "કોઈ નહીં"],
+    review_of_systems: ["આંખ", "કાન", "છાતી", "પેટ", "સાંધા", "કોઈ નહીં"],
+    ayush_prakriti: ["વાત", "પિત્ત", "કફ", "વાત-પિત્ત", "પિત્ત-કફ"],
+    ayush_vikriti: ["બેચેની", "ગરમી", "ભારેપણું"],
+    ayush_agni: ["અનિયમિત ભૂખ", "તીવ્ર ભૂખ", "ઓછી ભૂખ"],
+    ayush_koshtha: ["નિયમિત", "ક્યારેક", "કબજિયાત"],
+    ayush_ahara_vihara: ["ગરમ ખોરાક", "મસાલેદાર", "મોડે સૂવું"],
+    ayush_nidana: ["તણાવ", "ઠંડી", "વાસી ખોરાક"],
+    ayush_samprapti: ["ખાધા પછી", "સવારે", "રાત્રે"],
+  },
+  kn: {
+    chief_complaint: ["ಜ್ವರ", "ನೋವು", "ವಾಂತಿ", "ಉಸಿರಾಟ ತೊಂದರೆ", "ತಲೆ ತಿರುಗುವಿಕೆ", "ದೌರ್ಬಲ್ಯ", "ಕೆಮ್ಮು", "ಹೊಟ್ಟೆ ನೋವು"],
+    hpi: ["ಇಂದಿನಿಂದ", "2–3 ದಿನ", "1 ವಾರ", "1 ತಿಂಗಳು", "ಉರಿ", "ಒತ್ತಡ", "ಲಘು", "ತೀವ್ರ"],
+    past_history: ["ಮಧುಮೇಹ", "ಹೆಚ್ಚಿನ BP", "ಹೃದ್ರೋಗ", "ಕ್ಷಯ", "ಶಸ್ತ್ರಚಿಕಿತ್ಸೆ", "ಯಾವುದೂ ಇಲ್ಲ"],
+    drug_allergy: ["ಹೌದು, ಔಷಧ ತೆಗೆದುಕೊಳ್ಳುತ್ತೇನೆ", "ಇಲ್ಲ", "ಪೆನಿಸಿಲಿನ್", "ಸಲ್ಫಾ", "ಆಸ್ಪಿರಿನ್", "ಯಾವುದೂ ಇಲ್ಲ"],
+    family_history: ["ಮಧುಮೇಹ", "ಹೆಚ್ಚಿನ BP", "ಹೃದ್ರೋಗ", "ಕ್ಯಾನ್ಸರ್", "ಕ್ಷಯ", "ಯಾವುದೂ ಇಲ್ಲ"],
+    personal_history: ["ಧೂಮಪಾನ", "ಮದ್ಯಪಾನ", "ತಂಬಾಕು", "ಸಸ್ಯಾಹಾರ", "ಯಾವುದೂ ಇಲ್ಲ"],
+    review_of_systems: ["ಕಣ್ಣು", "ಕಿವಿ", "ಎದೆ", "ಹೊಟ್ಟೆ", "ಕೀಲು", "ಯಾವುದೂ ಇಲ್ಲ"],
+    ayush_prakriti: ["ವಾತ", "ಪಿತ್ತ", "ಕಫ", "ವಾತ-ಪಿತ್ತ", "ಪಿತ್ತ-ಕಫ"],
+    ayush_vikriti: ["ಆತಂಕ", "ಬಿಸಿ/ಉರಿ", "ಭಾರವಾಗಿ ಅನಿಸುತ್ತದೆ"],
+    ayush_agni: ["ಅನಿಯಮಿತ ಹಸಿವು", "ಪ್ರಬಲ ಹಸಿವು", "ದುರ್ಬಲ ಹಸಿವು"],
+    ayush_koshtha: ["ನಿಯಮಿತ", "ಆಗಾಗ", "ಮಲಬದ್ಧತೆ"],
+    ayush_ahara_vihara: ["ಬಿಸಿ ಆಹಾರ", "ಖಾರ", "ತಡ ನಿದ್ದೆ"],
+    ayush_nidana: ["ಒತ್ತಡ", "ಚಳಿ", "ಹಳಸಿದ ಆಹಾರ"],
+    ayush_samprapti: ["ತಿಂದ ನಂತರ", "ಬೆಳಗ್ಗೆ", "ರಾತ್ರಿ"],
+  },
+  ml: {
+    chief_complaint: ["പനി", "വേദന", "ഓക്കാനം", "ശ്വാസ ബുദ്ധിമുട്ട്", "തലകറക്കം", "ക്ഷീണം", "ചുമ", "വയറ്റ് വേദന"],
+    hpi: ["ഇന്ന് മുതൽ", "2–3 ദിവസം", "1 ആഴ്ച", "1 മാസം", "ജ്വലനം", "സമ്മർദ്ദം", "മൃദുവായ", "ശക്തമായ"],
+    past_history: ["പ്രമേഹം", "ഉയർന്ന BP", "ഹൃദ്രോഗം", "ക്ഷയം", "ശസ്ത്രക്രിയ", "ഒന്നും ഇല്ല"],
+    drug_allergy: ["അതെ, മരുന്ന് കഴിക്കുന്നു", "ഇല്ല", "പെനിസിലിൻ", "സൾഫ", "ആസ്പിരിൻ", "ഒന്നും ഇല്ല"],
+    family_history: ["പ്രമേഹം", "ഉയർന്ന BP", "ഹൃദ്രോഗം", "കാൻസർ", "ക്ഷയം", "ഒന്നും ഇല്ല"],
+    personal_history: ["പുകവലി", "മദ്യപാനം", "പുകയില", "സസ്യഭക്ഷി", "ഒന്നും ഇല്ല"],
+    review_of_systems: ["കണ്ണ്", "കാത്", "നെഞ്ച്", "വയർ", "സന്ധി", "ഒന്നും ഇല്ല"],
+    ayush_prakriti: ["വാത", "പിത്ത", "കഫ", "വാത-പിത്ത", "പിത്ത-കഫ"],
+    ayush_vikriti: ["ഉത്കണ്ഠ", "ചൂട്/വീക്കം", "ഭാരം"],
+    ayush_agni: ["ക്രമമില്ലാത്ത വിശപ്പ്", "ശക്തമായ വിശപ്പ്", "ദുർബലമായ വിശപ്പ്"],
+    ayush_koshtha: ["ക്രമമായ", "ഇടക്കിടെ", "മലബന്ധം"],
+    ayush_ahara_vihara: ["ചൂടുള്ള ഭക്ഷണം", "എരിവ്", "വൈകി ഉറങ്ങൽ"],
+    ayush_nidana: ["സമ്മർദ്ദം", "തണുപ്പ്", "കേടായ ഭക്ഷണം"],
+    ayush_samprapti: ["ഭക്ഷണ ശേഷം", "രാവിലെ", "രാത്രി"],
+  },
+  pa: {
+    chief_complaint: ["ਬੁਖਾਰ", "ਦਰਦ", "ਉਲਟੀ", "ਸਾਹ ਦੀ ਤਕਲੀਫ਼", "ਚੱਕਰ", "ਕਮਜ਼ੋਰੀ", "ਖਾਂਸੀ", "ਪੇਟ ਦਰਦ"],
+    hpi: ["ਅੱਜ ਤੋਂ", "2–3 ਦਿਨ", "1 ਹਫ਼ਤਾ", "1 ਮਹੀਨਾ", "ਜਲਨ", "ਦਬਾਅ", "ਹਲਕਾ", "ਤੇਜ਼"],
+    past_history: ["ਸ਼ੂਗਰ", "ਉੱਚ BP", "ਦਿਲ ਦੀ ਬਿਮਾਰੀ", "ਟੀਬੀ", "ਆਪਰੇਸ਼ਨ", "ਕੋਈ ਨਹੀਂ"],
+    drug_allergy: ["ਹਾਂ, ਦਵਾਈ ਲੈਂਦਾ ਹਾਂ", "ਨਹੀਂ", "ਪੈਨਿਸਿਲਿਨ", "ਸਲਫ਼ਾ", "ਐਸਪਿਰਿਨ", "ਕੋਈ ਨਹੀਂ"],
+    family_history: ["ਸ਼ੂਗਰ", "ਉੱਚ BP", "ਦਿਲ ਦੀ ਬਿਮਾਰੀ", "ਕੈਂਸਰ", "ਟੀਬੀ", "ਕੋਈ ਨਹੀਂ"],
+    personal_history: ["ਸਿਗਰਟ", "ਸ਼ਰਾਬ", "ਤੰਬਾਕੂ", "ਸ਼ਾਕਾਹਾਰੀ", "ਕੋਈ ਨਹੀਂ"],
+    review_of_systems: ["ਅੱਖਾਂ", "ਕੰਨ", "ਛਾਤੀ", "ਪੇਟ", "ਜੋੜ", "ਕੋਈ ਨਹੀਂ"],
+    ayush_prakriti: ["ਵਾਤ", "ਪਿੱਤ", "ਕਫ਼", "ਵਾਤ-ਪਿੱਤ", "ਪਿੱਤ-ਕਫ਼"],
+    ayush_vikriti: ["ਬੇਚੈਨੀ", "ਗਰਮੀ/ਸੋਜ਼", "ਭਾਰੀਪਣ"],
+    ayush_agni: ["ਅਨਿਯਮਿਤ ਭੁੱਖ", "ਤੇਜ਼ ਭੁੱਖ", "ਕਮਜ਼ੋਰ ਭੁੱਖ"],
+    ayush_koshtha: ["ਨਿਯਮਿਤ", "ਕਦੇ-ਕਦੇ", "ਕਬਜ਼"],
+    ayush_ahara_vihara: ["ਗਰਮ ਖਾਣਾ", "ਮਸਾਲੇਦਾਰ", "ਦੇਰ ਨਾਲ ਸੌਣਾ"],
+    ayush_nidana: ["ਤਣਾਅ", "ਠੰਡ", "ਬਾਸੀ ਖਾਣਾ"],
+    ayush_samprapti: ["ਖਾਣੇ ਤੋਂ ਬਾਅਦ", "ਸਵੇਰੇ", "ਰਾਤ ਨੂੰ"],
+  },
+  ur: {
+    chief_complaint: ["بخار", "درد", "قے", "سانس لینے میں دشواری", "چکر", "کمزوری", "کھانسی", "پیٹ درد"],
+    hpi: ["آج سے", "2–3 دن", "1 ہفتہ", "1 مہینہ", "جلن", "دباؤ", "ہلکا", "شدید"],
+    past_history: ["ذیابیطس", "ہائی BP", "دل کی بیماری", "ٹی بی", "آپریشن", "کچھ نہیں"],
+    drug_allergy: ["ہاں، دوائی لیتا ہوں", "نہیں", "پینیسیلین", "سلفا", "اسپرین", "کچھ نہیں"],
+    family_history: ["ذیابیطس", "ہائی BP", "دل کی بیماری", "کینسر", "ٹی بی", "کچھ نہیں"],
+    personal_history: ["سگریٹ نوشی", "شراب", "تمباکو", "سبزی خور", "کچھ نہیں"],
+    review_of_systems: ["آنکھیں", "کان", "سینہ", "پیٹ", "جوڑ", "کچھ نہیں"],
+    ayush_prakriti: ["وات", "پت", "کف", "وات-پت", "پت-کফ"],
+    ayush_vikriti: ["بے چینی", "گرمی/سوزش", "بھاری پن"],
+    ayush_agni: ["بے ترتیب بھوک", "تیز بھوک", "کمزور بھوک"],
+    ayush_koshtha: ["باقاعدہ", "کبھی کبھی", "قبض"],
+    ayush_ahara_vihara: ["گرم کھانا", "مسالے دار", "دیر سے سونا"],
+    ayush_nidana: ["تناؤ", "ٹھنڈ", "باسی کھانا"],
+    ayush_samprapti: ["کھانے کے بعد", "صبح", "رات"],
+  },
 };
 
 
@@ -188,8 +342,8 @@ export default function HistoryPage() {
   const [voiceError, setVoiceError] = useState("");
   const hasAskedFirst = useRef(false);
 
-  // Dynamic stage list depends on mode
-  const STAGES = interviewMode === "ayush" ? AYUSH_STAGES : ALLOPATHIC_STAGES;
+  // Always use combined mode (allopathic + AYUSH stages for everyone)
+  const STAGES = COMBINED_STAGES;
   const stageIndex = STAGES.indexOf(stage);
   const progress = Math.round(((stageIndex + 1) / (STAGES.length + 1)) * 80) + 5;
 
@@ -521,7 +675,7 @@ export default function HistoryPage() {
   }
 
   const canSubmit = selectedChips.length > 0 || patientInput.trim().length > 1;
-  const chips = TOUCH_OPTIONS[stage] ?? COMMON_SYMPTOMS.slice(0, 8).map((s) => s.labelHi);
+  const chips = (TOUCH_OPTIONS_L10N[lang] ?? TOUCH_OPTIONS_L10N["hi"])[stage] ?? COMMON_SYMPTOMS.slice(0, 8).map((s) => s.labelHi);
 
   // ── Complete screen ──────────────────────────────────────────
   if (isComplete) {
@@ -591,7 +745,7 @@ export default function HistoryPage() {
       <KioskBody className="space-y-4">
         {/* Stage badge */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {STAGES.map((s, i) => (
+          {(STAGES as Stage[]).map((s: Stage, i: number) => (
             <span
               key={s}
               className={cn(
@@ -603,9 +757,10 @@ export default function HistoryPage() {
                   : "bg-neutral-100 text-neutral-400"
               )}
             >
-              {i < stageIndex ? "✓" : i + 1} {getStageLabels(lang)[s]}
+              {i < stageIndex ? "✓" : i + 1} {getStageLabels(lang)[s as Stage]}
             </span>
           ))}
+
         </div>
 
         {/* AI Question bubble */}
