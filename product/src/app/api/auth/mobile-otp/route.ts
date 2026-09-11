@@ -156,7 +156,15 @@ export async function POST(req: NextRequest) {
       const newOtp   = Math.floor(100000 + Math.random() * 900000).toString();
       const newTxnId = crypto.randomUUID();
 
-      await sendViaTwilio(mobile, newOtp); // throws if Twilio not configured
+      let twilioOk = false;
+      let twilioError = "";
+      try {
+        await sendViaTwilio(mobile, newOtp);
+        twilioOk = true;
+      } catch (e) {
+        twilioError = e instanceof Error ? e.message : String(e);
+        console.warn("[mobile-otp] Twilio failed (demo mode fallback):", twilioError);
+      }
 
       otpStore.set(newTxnId, {
         mobile,
@@ -170,6 +178,9 @@ export async function POST(req: NextRequest) {
         txnId: newTxnId,
         masked: `+91 ${mobile.slice(0, 2)}XXXXXX${mobile.slice(-2)}`,
         expiresInSeconds: 300,
+        // devOtp is returned ONLY when Twilio fails (trial/DLT restriction)
+        // Remove this field before production launch
+        ...(twilioOk ? {} : { devOtp: newOtp, devNote: `SMS not delivered (${twilioError}). Use this code for demo.` }),
       });
     }
 

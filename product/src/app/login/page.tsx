@@ -73,6 +73,11 @@ export default function LoginPage() {
       setTxnId(data.txnId);
       setMaskedMobile(data.masked ?? `+91 ${mobile.slice(0, 2)}XXXXXX${mobile.slice(-2)}`);
       setOtpContext("mobile");
+      // Demo fallback: show OTP on screen if SMS delivery failed (trial/DLT)
+      if (data.devOtp) {
+        setOtpInput(data.devOtp);
+        setOtpError(`📋 Demo mode: SMS not delivered. OTP auto-filled → ${data.devOtp}`);
+      }
       setMethod("otp");
     } catch {
       setOtpError("Network error. Please try again.");
