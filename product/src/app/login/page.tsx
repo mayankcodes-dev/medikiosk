@@ -453,7 +453,7 @@ export default function LoginPage() {
               {/* "Recommended" badge */}
               <span className="absolute top-2 right-3 text-[10px] font-bold uppercase
                                bg-green-600 text-white rounded-full px-2 py-0.5 tracking-wide">
-                ✓ Recommended
+                ✓ {t(lang, "recommendedBadge")}
               </span>
               <div className="h-14 w-14 rounded-2xl bg-green-600 flex items-center
                               justify-center text-white text-2xl shrink-0 shadow-sm">
@@ -461,11 +461,11 @@ export default function LoginPage() {
               </div>
               <div className="flex-1">
                 <p className="font-bold text-green-900 text-lg leading-tight">
-                  मोबाइल नंबर / Mobile Number
+                  {t(lang, "mobileNumber")} / Mobile Number
                 </p>
-                <p className="text-sm text-green-700 font-medium mt-0.5">Login via OTP on Mobile</p>
+                <p className="text-sm text-green-700 font-medium mt-0.5">{t(lang, "loginViaMobileOtp")}</p>
                 <p className="text-xs text-neutral-500 mt-1">
-                  OTP sent to your number. ABHA linked to same mobile will be auto-fetched.
+                  {t(lang, "mobileOtpDesc")}
                 </p>
               </div>
               <svg className="text-green-400 shrink-0" width="20" height="20"

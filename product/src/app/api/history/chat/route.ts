@@ -504,15 +504,41 @@ export async function POST(req: NextRequest) {
       ? stage.replace("ayush_", "Dashavidha — ")
       : stage;
 
+    // Script hints to reinforce language for Gemini
+    const SCRIPT_EXAMPLES: Record<string, string> = {
+      pa: "ਤੁਹਾਨੂੰ ਕੀ ਤਕਲੀਫ਼ ਹੈ?",
+      bn: "আপনার কী সমস্যা হচ্ছে?",
+      ta: "உங்களுக்கு என்ன பிரச்சனை?",
+      te: "మీకు ఏమి సమస్య?",
+      gu: "તમને શું તકલીફ છે?",
+      kn: "ನಿಮಗೆ ಏನು ಸಮಸ್ಯೆ?",
+      ml: "നിങ്ങൾക്ക് എന്ത് പ്രശ്നമാണ്?",
+      ur: "آپ کو کیا تکلیف ہے؟",
+      mr: "तुम्हाला काय त्रास होतोय?",
+    };
+    const scriptExample = SCRIPT_EXAMPLES[lang]
+      ? `\nExample of correct ${LANG_NAMES[lang] ?? lang} script: "${SCRIPT_EXAMPLES[lang]}"`
+      : "";
+
     const userPrompt = `Current stage: ${stageLabel}
 Mode: ${mode}
 Conversation so far:
 ${conversationHistory || "(No conversation yet — this is the first question)"}
 
-Ask the next question for this stage. Reply with ONLY the question in ${LANG_NAMES[lang] ?? "Hindi"}. No explanation, no prefix.`;
+CRITICAL: Your response MUST be written ONLY in ${LANG_NAMES[lang] ?? "Hindi"} (${LANG_SCRIPTS[lang] ?? "native script"}).${scriptExample}
+DO NOT respond in Hindi or English if the language is not Hindi or English.
+Ask the next question for this stage. Reply with ONLY the question — no explanation, no prefix, no labels.`;
 
     const geminiResponse = await callGemini(systemPrompt, userPrompt);
-    const question = geminiResponse ?? getFallbackQuestion(stage, lang);
+
+    // ── Script validation: reject if Gemini returned Devanagari for a non-Devanagari language
+    const DEVANAGARI_LANGS = new Set(["hi", "mr", "ne", "sa"]);
+    const hasDevanagari = /[\u0900-\u097F]/.test(geminiResponse ?? "");
+    const usesFallback = !DEVANAGARI_LANGS.has(lang) && hasDevanagari;
+
+    const question = usesFallback
+      ? getFallbackQuestion(stage, lang)   // Gemini replied in Hindi — use deterministic fallback
+      : (geminiResponse ?? getFallbackQuestion(stage, lang));
 
     return NextResponse.json({
       question,

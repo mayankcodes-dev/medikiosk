@@ -53,7 +53,11 @@ export type TranslationKey =
   | "transcribed"
   | "selectDocType"
   | "aiReadingDoc"
-  | "extractedSuccessfully";
+  | "extractedSuccessfully"
+  | "mobileNumber"
+  | "loginViaMobileOtp"
+  | "mobileOtpDesc"
+  | "recommendedBadge";
 
 type Translations = Record<TranslationKey, string>;
 type LanguageTranslations = Record<string, Translations>;
@@ -111,6 +115,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "कागज का प्रकार चुनें",
     aiReadingDoc: "AI कागज पढ़ रहा है...",
     extractedSuccessfully: "सफलतापूर्वक पढ़ा गया",
+    mobileNumber: "मोबाइल नंबर",
+    loginViaMobileOtp: "मोबाइल OTP से लॉगिन",
+    mobileOtpDesc: "OTP आपके नंबर पर भेजा जाएगा। उसी मोबाइल से ABHA अपने आप मिल जाएगा।",
+    recommendedBadge: "अनुशंसित",
   },
 
   en: {
@@ -165,6 +173,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "Select document type",
     aiReadingDoc: "AI reading document...",
     extractedSuccessfully: "Extracted successfully",
+    mobileNumber: "Mobile Number",
+    loginViaMobileOtp: "Login via OTP on Mobile",
+    mobileOtpDesc: "OTP sent to your number. ABHA linked to same mobile will be auto-fetched.",
+    recommendedBadge: "Recommended",
   },
 
   bn: {
@@ -219,6 +231,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "নথির ধরন বেছে নিন",
     aiReadingDoc: "AI নথি পড়ছে...",
     extractedSuccessfully: "সফলভাবে বের করা হয়েছে",
+    mobileNumber: "মোবাইল নম্বর",
+    loginViaMobileOtp: "মোবাইল OTP দিয়ে লগিন",
+    mobileOtpDesc: "আপনার নম্বরে OTP পাঠানো হবে। একই মোবাইলে ABHA স্বয়ংক্রিয়ভাবে আনা হবে।",
+    recommendedBadge: "প্রস্তাবিত",
   },
 
   ta: {
@@ -273,6 +289,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "ஆவண வகை தேர்ந்தெடு",
     aiReadingDoc: "AI ஆவணம் படிக்கிறது...",
     extractedSuccessfully: "வெற்றிகரமாக பிரித்தெடுக்கப்பட்டது",
+    mobileNumber: "மொபைல் எண்",
+    loginViaMobileOtp: "மொபைல் OTP மூலம் உள்நுழைய",
+    mobileOtpDesc: "உங்கள் எண்ணுக்கு OTP அனுப்பப்படும். அதே மொபைலுடன் இணைந்த ABHA தானாக கிடைக்கும்.",
+    recommendedBadge: "பரிந்துரைக்கப்பட்டது",
   },
 
   te: {
@@ -327,6 +347,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "పత్ర రకం ఎంచుకోండి",
     aiReadingDoc: "AI పత్రం చదువుతోంది...",
     extractedSuccessfully: "విజయవంతంగా సేకరించారు",
+    mobileNumber: "మొబైల్ నంబర్",
+    loginViaMobileOtp: "మొబైల్ OTP తో లాగిన్",
+    mobileOtpDesc: "OTP మీ నంబర్‌కు పంపబడుతుంది. అదే మొబైల్‌కు లింక్ అయిన ABHA స్వయంచాలకంగా వస్తుంది.",
+    recommendedBadge: "సిఫార్సు చేయబడింది",
   },
 
   mr: {
@@ -381,6 +405,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "कागदपत्राचा प्रकार निवडा",
     aiReadingDoc: "AI कागदपत्र वाचत आहे...",
     extractedSuccessfully: "यशस्वीरित्या काढले",
+    mobileNumber: "मोबाईल क्रमांक",
+    loginViaMobileOtp: "मोबाईल OTP ने लॉगिन",
+    mobileOtpDesc: "OTP तुमच्या नंबरवर पाठवला जाईल. त्याच मोबाईलशी जोडलेला ABHA आपोआप मिळेल.",
+    recommendedBadge: "शिफारस केलेले",
   },
 
   gu: {
@@ -435,6 +463,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "દસ્તાવેજ પ્રકાર પસંદ કરો",
     aiReadingDoc: "AI દસ્તાવેજ વાંચી રહ્યો છે...",
     extractedSuccessfully: "સફળતાપૂર્વક કાઢ્યું",
+    mobileNumber: "મોબાઈલ નંબર",
+    loginViaMobileOtp: "મોબાઈલ OTP થી લૉગિન",
+    mobileOtpDesc: "OTP તમારા નંબર પર મોકલવામાં આવશે. તે જ મોબાઈલ સાથે જોડાયેલ ABHA આપોઆપ મળશે.",
+    recommendedBadge: "ભલામણ",
   },
 
   kn: {
@@ -489,6 +521,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "ದಾಖಲೆ ಪ್ರಕಾರ ಆರಿಸಿ",
     aiReadingDoc: "AI ದಾಖಲೆ ಓದುತ್ತಿದೆ...",
     extractedSuccessfully: "ಯಶಸ್ವಿಯಾಗಿ ಹೊರತೆಗೆಯಲಾಗಿದೆ",
+    mobileNumber: "ಮೊಬೈಲ್ ಸಂಖ್ಯೆ",
+    loginViaMobileOtp: "ಮೊಬೈಲ್ OTP ಮೂಲಕ ಲಾಗಿನ್",
+    mobileOtpDesc: "OTP ನಿಮ್ಮ ಸಂಖ್ಯೆಗೆ ಕಳಿಸಲಾಗುತ್ತದೆ. ಅದೇ ಮೊಬೈಲ್‌ಗೆ ಲಿಂಕ್ ಆದ ABHA ತನ್ನಷ್ಟಕ್ಕೆ ಬರುತ್ತದೆ.",
+    recommendedBadge: "ಶಿಫಾರಸು",
   },
 
   ml: {
@@ -543,6 +579,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "രേഖ തരം തിരഞ്ഞെടുക്കുക",
     aiReadingDoc: "AI രേഖ വായിക്കുന്നു...",
     extractedSuccessfully: "വിജയകരമായി വേർതിരിച്ചു",
+    mobileNumber: "മൊബൈൽ നമ്പർ",
+    loginViaMobileOtp: "മൊബൈൽ OTP വഴി ലോഗിൻ",
+    mobileOtpDesc: "OTP നിങ്ങളുടെ നമ്പറിൽ അയക്കും. അതേ മൊബൈലിൽ ലിങ്ക് ചെയ്ത ABHA സ്വയം ലഭിക്കും.",
+    recommendedBadge: "ശുപാർശ ചെയ്യുന്നത്",
   },
 
   pa: {
@@ -597,6 +637,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "ਦਸਤਾਵੇਜ਼ ਦੀ ਕਿਸਮ ਚੁਣੋ",
     aiReadingDoc: "AI ਦਸਤਾਵੇਜ਼ ਪੜ੍ਹ ਰਿਹਾ ਹੈ...",
     extractedSuccessfully: "ਸਫਲਤਾਪੂਰਵਕ ਕੱਢਿਆ ਗਿਆ",
+    mobileNumber: "ਮੋਬਾਇਲ ਨੰਬਰ",
+    loginViaMobileOtp: "ਮੋਬਾਈਲ OTP ਨਾਲ ਲੌਗਿਨ",
+    mobileOtpDesc: "OTP ਤੁਹਾਡੇ ਨੰਬਰ ਤੇ ਭੇਜਿਆ ਜਾਵੇਗਾ। ਉਸੇ ਮੋਬਾਇਲ ਨਾਲ ਜੁੜਿਆ ABHA ਆਪਣੇ ਆਪ ਮਿਲੇਗਾ।",
+    recommendedBadge: "ਸਿਫਾਰਸ਼ੀ",
   },
 
   ur: {
@@ -651,6 +695,10 @@ export const TRANSLATIONS: LanguageTranslations = {
     selectDocType: "دستاویز کی قسم منتخب کریں",
     aiReadingDoc: "AI دستاویز پڑھ رہا ہے...",
     extractedSuccessfully: "کامیابی سے نکالا گیا",
+    mobileNumber: "موبائل نمبر",
+    loginViaMobileOtp: "موبائل OTP سے لاگ ان",
+    mobileOtpDesc: "OTP آپ کے نمبر پر بھیجا جائے گا۔ اسی موبائل سے جڑا ABHA خودکار مل جائے گا۔",
+    recommendedBadge: "تجویز کردہ",
   },
 };
 
@@ -668,3 +716,4 @@ export function getLangName(lang: string): string {
   };
   return map[lang] ?? lang.toUpperCase();
 }
+
