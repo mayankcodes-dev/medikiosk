@@ -182,9 +182,45 @@ export default function HistoryPage() {
   const stageIndex = STAGES.indexOf(stage);
   const progress = Math.round(((stageIndex + 1) / (STAGES.length + 1)) * 80) + 5;
 
-  // ── Read sessionStorage ──────────────────────────────────────
+  // ── Read sessionStorage + kick off first question ─────────────
   useEffect(() => {
-    setLang(sessionStorage.getItem("mk_lang") ?? "hi");
+    const savedLang = sessionStorage.getItem("mk_lang") ?? "hi";
+    setLang(savedLang);
+    // Fetch first question with the CORRECT language immediately
+    if (!hasAskedFirst.current) {
+      hasAskedFirst.current = true;
+      // POST directly to bypass stale lang state
+      setAiLoading(true);
+      fetch("/api/history/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lang: savedLang, messages: [], stage: "chief_complaint" }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.question) setCurrentQuestion(data.question);
+          setAiLoading(false);
+        })
+        .catch(() => {
+          // Offline fallback
+          const FIRST_Q: Record<string, string> = {
+            hi: "आज आपको मुख्य रूप से क्या तकलीफ है?",
+            en: "What is your main problem today?",
+            ta: "இன்று உங்கள் முக்கிய பிரச்சனை என்ன?",
+            te: "మీకు ఈ రోజు ప్రధాన సమస్య ఏమిటి?",
+            bn: "আজ আপনার প্রধান সমস্যা কী?",
+            mr: "आज तुम्हाला मुख्यत्वे काय त्रास आहे?",
+            gu: "આજે તમારી મુખ્ય સમસ્યા શું છે?",
+            kn: "ಇಂದು ನಿಮ್ಮ ಮುಖ್ಯ ಸಮಸ್ಯೆ ಏನು?",
+            ml: "ഇന്ന് നിങ്ങളുടെ പ്രധാന പ്രശ്നം എന്താണ്?",
+            pa: "ਅੱਜ ਤੁਹਾਡੀ ਮੁੱਖ ਸਮੱਸਿਆ ਕੀ ਹੈ?",
+            ur: "آج آپ کا اہم مسئلہ کیا ہے؟",
+          };
+          setCurrentQuestion(FIRST_Q[savedLang] ?? FIRST_Q["hi"]);
+          setAiLoading(false);
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Voice session ────────────────────────────────────────────
@@ -195,15 +231,6 @@ export default function HistoryPage() {
     },
     onError: (msg) => setVoiceError(msg),
   });
-
-  // ── Fetch first question on mount ────────────────────────────
-  useEffect(() => {
-    if (!hasAskedFirst.current && lang) {
-      hasAskedFirst.current = true;
-      fetchNextQuestion("chief_complaint", []);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
 
   // ── Speak question when it changes ───────────────────────────
   useEffect(() => {

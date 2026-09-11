@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("[scan/extract] error:", err?.message || err);
     return NextResponse.json(
-      { error: "Extraction failed. Please ensure file is valid image/PDF under 10MB." },
+      { error: "Extraction failed. Please ensure file is valid image or PDF under 100 MB." },
       { status: 500 }
     );
   }

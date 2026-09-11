@@ -34,7 +34,9 @@ function devAdapter(action: string, body: Record<string, string>): Response {
       return NextResponse.json({
         txnId,
         message: "OTP sent to registered mobile",
-        devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+        // Universal bypass: 0000 always works in demo mode
+        mockOtp: "0000",
+        devOtp: process.env.NODE_ENV !== "production" ? "0000" : undefined,
       });
     }
 
@@ -44,7 +46,9 @@ function devAdapter(action: string, body: Record<string, string>): Response {
       if (!stored || Date.now() > stored.expiresAt) {
         return NextResponse.json({ error: "OTP expired or invalid txnId" }, { status: 400 });
       }
-      if (stored.otp !== body.otp) {
+      // Accept 0000 as universal bypass OTP (demo/dev mode)
+      const isUniversal = body.otp === "0000";
+      if (!isUniversal && stored.otp !== body.otp) {
         return NextResponse.json({ error: "Incorrect OTP" }, { status: 400 });
       }
       DEV_OTP_STORE.delete(body.txnId);

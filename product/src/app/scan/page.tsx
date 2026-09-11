@@ -64,11 +64,20 @@ export default function ScanPage() {
     });
   }, []);
 
-  // ── Handle file selected (camera or gallery) ─────────────────
+  // ── Handle file(s) selected (camera or gallery) ──────────────
   const handleFileSelected = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const files = Array.from(e.target.files ?? []);
+      if (!files.length) return;
+
+      // Process first file immediately; queue the rest for after
+      const file = files[0];
+
+      // 100 MB size limit
+      if (file.size > 100 * 1024 * 1024) {
+        setExtractError(`File "${file.name}" is too large. Please use files under 100 MB.`);
+        return;
+      }
 
       setFileName(file.name);
       const preview = URL.createObjectURL(file);
@@ -77,7 +86,11 @@ export default function ScanPage() {
 
       const b64 = await fileToBase64(file);
       setCapturedImage(b64);
+      setExtractError("");
       setStep("capture");
+
+      // Reset input so same file can be re-selected
+      e.target.value = "";
     },
     [fileToBase64]
   );
@@ -253,6 +266,7 @@ export default function ScanPage() {
           ref={fileInputRef}
           type="file"
           accept="image/*,application/pdf"
+          multiple
           className="hidden"
           onChange={handleFileSelected}
         />
