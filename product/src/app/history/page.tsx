@@ -130,8 +130,8 @@ export default function HistoryPage() {
           setSummary(data.structuredSummary);
           setIsComplete(true);
         } else {
+          setStage(forStage); // sync breadcrumb to the question being ASKED, not the next stage
           setCurrentQuestion(data.question);
-          setStage(data.nextStage ?? forStage);
         }
       } catch {
         // Offline fallback — multilingual static questions per stage
@@ -295,8 +295,7 @@ export default function HistoryPage() {
         setAiLoading(false);
       }
     } else {
-      setCurrentQuestion(""); // clear stale question immediately
-      setStage(nextStage as Stage);
+      setCurrentQuestion(""); // clear stale question while loading next
       await fetchNextQuestion(nextStage as Stage, newMessages);
     }
   }, [selectedChips, patientInput, messages, currentQuestion, stage, stageIndex, lang, fetchNextQuestion]);

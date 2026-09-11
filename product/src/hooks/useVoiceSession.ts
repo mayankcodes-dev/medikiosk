@@ -105,16 +105,10 @@ export function useVoiceSession({
     if (typeof window === "undefined") return;
     synthRef.current = window.speechSynthesis;
 
-    if (isBhashiniConfigured()) {
-      setEngine("bhashini");
-    } else if (
-      webSpeechInfo.supported &&
-      ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)
-    ) {
-      setEngine("webspeech");
-    } else {
-      setEngine("none");
-    }
+    // Always use Bhashini engine — TTS and ASR are routed through server-side
+    // proxies (/api/bhashini/tts and /api/bhashini/asr) which hold the API keys.
+    // No need for NEXT_PUBLIC_ env vars to be set on the client.
+    setEngine("bhashini");
 
     return () => {
       recognitionRef.current?.stop();

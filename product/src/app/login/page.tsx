@@ -103,6 +103,11 @@ export default function LoginPage() {
       const data = await res.json();
       if (data.txnId) {
         setTxnId(data.txnId);
+        // Sandbox always returns mockOtp — auto-fill for demo
+        if (data.mockOtp) {
+          setOtpInput(data.mockOtp);
+          setOtpError(`📋 Demo sandbox: OTP auto-filled → ${data.mockOtp}`);
+        }
         setMethod("otp");
       } else {
         setOtpError(data.message ?? "Failed to send OTP");
