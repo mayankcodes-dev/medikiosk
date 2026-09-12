@@ -10,6 +10,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://app.medikiosk.mayankcodes.dev"
+  ),
   title: "MediKiosk — AI Clinical History Kiosk",
   description:
     "AI-powered multilingual clinical history-taking kiosk for Indian hospitals and AYUSH clinics. Speaks 13 Indian languages. PS 26047 | Ministry of AYUSH | SIH 2026",
@@ -27,7 +30,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "MediKiosk — AI Clinical History Kiosk",
     description: "AI voice agent takes patient history in 13 Indian languages before doctor consultation.",
-    url: "https://medikiosk.mayankcodes.dev",
+    url: "https://app.medikiosk.mayankcodes.dev",
     siteName: "MediKiosk",
     type: "website",
     images: [

@@ -129,4 +129,66 @@
     70%  { transform: scale(1);    box-shadow: 0 0 0 16px rgba(37,99,235,0); }
     100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(37,99,235,0); }
   }
+
+  /* ── Micro-interactions ───────────────────────────────────────── */
+
+  /* Hover lift — cards and interactive blocks */
+  .hover-lift {
+    transition: transform 200ms ease, box-shadow 200ms ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -4px rgba(0,0,0,0.12);
+  }
+
+  /* Press scale — tap targets */
+  .press-scale {
+    transition: transform 120ms ease;
+  }
+  .press-scale:active {
+    transform: scale(0.96);
+  }
+
+  /* Shimmer skeleton loader */
+  .shimmer {
+    background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Success flash */
+  .success-flash {
+    animation: success-flash 0.6s ease forwards;
+  }
+  @keyframes success-flash {
+    0%   { background-color: inherit; }
+    30%  { background-color: #dcfce7; }
+    100% { background-color: inherit; }
+  }
+
+  /* Fade-in slide-up — for toasts / banners */
+  .fade-up {
+    animation: fade-up 0.25s ease forwards;
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Reduced-motion: kill ALL animations ───────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    .wave-bar, .pulse-ring, .shimmer { animation: none !important; }
+    .hover-lift:hover  { transform: none; }
+    .press-scale:active { transform: none; }
+  }
 }

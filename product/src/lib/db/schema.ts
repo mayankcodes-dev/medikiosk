@@ -72,3 +72,24 @@ export const consents = pgTable("consents", {
   audioRecording: boolean("audio_recording").notNull().default(false),
   createdAt:    timestamp("created_at").defaultNow().notNull(),
 });
+
+// ── Queue Entry ───────────────────────────────────────────────────────────────
+// Live doctor queue — persisted to DB so serverless cold starts don't lose data
+export const queueEntries = pgTable("queue_entries", {
+  id:             text("id").primaryKey(),                  // cuid
+  token:          text("token").notNull(),                  // e.g. "A-042"
+  tokenIndex:     integer("token_index").notNull(),         // sequential
+  lang:           text("lang").notNull().default("hi"),
+  loginMethod:    text("login_method").notNull().default("anonymous"),
+  patientName:    text("patient_name"),
+  chiefComplaint: text("chief_complaint").notNull().default("Not specified"),
+  severity:       text("severity").notNull().default("moderate"),
+  suggestedICD10: text("suggested_icd10").notNull().default(""),
+  redFlags:       jsonb("red_flags").notNull().default([]),
+  ayushNote:      text("ayush_note"),
+  hasDocuments:   boolean("has_documents").notNull().default(false),
+  status:         text("status").notNull().default("waiting"),
+  // "waiting" | "calling" | "in_consultation" | "done"
+  submittedAt:    timestamp("submitted_at").defaultNow().notNull(),
+  updatedAt:      timestamp("updated_at").defaultNow().notNull(),
+});
