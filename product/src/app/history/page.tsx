@@ -765,7 +765,7 @@ export default function HistoryPage() {
             ✅
           </motion.div>
           <h2 className="text-xl font-bold text-neutral-900 text-center">
-            इतिहास पूरा हुआ
+            {t(lang, "historyComplete")}
           </h2>
           <p className="text-sm text-neutral-400 text-center">
             History complete — moving to documents...

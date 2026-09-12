@@ -11,28 +11,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-
-interface OTPSession {
-  mobile: string;
-  otp: string;
-  expiresAt: number;
-  attempts: number;
-}
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __mkMobileOTP: Map<string, OTPSession> | undefined;
-}
-
-const otpStore: Map<string, OTPSession> =
-  globalThis.__mkMobileOTP ?? (globalThis.__mkMobileOTP = new Map());
-
-function cleanup() {
-  const now = Date.now();
-  for (const [id, s] of otpStore) {
-    if (now > s.expiresAt) otpStore.delete(id);
-  }
-}
+import { db, otpSessions } from "@/lib/db";
+import { eq, lt } from "drizzle-orm";
 
 // ── Twilio SMS ────────────────────────────────────────────────────────────────
 
@@ -128,8 +108,6 @@ async function lookupABHAByMobile(mobile: string, otp: string): Promise<{
 // ── POST handler ──────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  cleanup();
-
   try {
     const body = await req.json() as Record<string, string>;
     const { action, mobile, txnId, otp } = body;
@@ -143,20 +121,27 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Rate limit: 1 OTP per mobile per 60s
-      for (const session of otpStore.values()) {
-        if (session.mobile === mobile && Date.now() < session.expiresAt - 4 * 60 * 1000) {
-          return NextResponse.json(
-            { error: "OTP already sent. Please wait before requesting again." },
-            { status: 429 }
-          );
-        }
+      // Clean up expired OTP rows (non-critical)
+      await db.delete(otpSessions).where(
+        lt(otpSessions.expiresAt, new Date(Date.now() - 10 * 60 * 1000))
+      ).catch(() => {/* ignore */});
+
+      // Rate limit: 1 OTP per mobile per 60 seconds
+      const existing = await db.select().from(otpSessions).where(eq(otpSessions.mobile, mobile));
+      const recent = existing.find(
+        (s) => s.expiresAt.getTime() > Date.now() - 4 * 60 * 1000
+      );
+      if (recent) {
+        return NextResponse.json(
+          { error: "OTP already sent. Please wait before requesting again." },
+          { status: 429 }
+        );
       }
 
       const newOtp   = Math.floor(100000 + Math.random() * 900000).toString();
       const newTxnId = crypto.randomUUID();
 
-      let twilioOk = false;
+      let twilioOk   = false;
       let twilioError = "";
       try {
         await sendViaTwilio(mobile, newOtp);
@@ -166,11 +151,13 @@ export async function POST(req: NextRequest) {
         console.warn("[mobile-otp] Twilio failed (demo mode fallback):", twilioError);
       }
 
-      otpStore.set(newTxnId, {
+      // Persist OTP to Neon DB (survives cold starts)
+      await db.insert(otpSessions).values({
+        id:        newTxnId,
         mobile,
-        otp: newOtp,
-        expiresAt: Date.now() + 5 * 60 * 1000,
-        attempts: 0,
+        otp:       newOtp,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        attempts:  0,
       });
 
       return NextResponse.json({
@@ -178,7 +165,6 @@ export async function POST(req: NextRequest) {
         txnId: newTxnId,
         masked: `+91 ${mobile.slice(0, 2)}XXXXXX${mobile.slice(-2)}`,
         expiresInSeconds: 300,
-        // devOtp returned when Twilio fails — use 0000 as universal bypass code
         ...(twilioOk ? {} : { devOtp: "0000", devNote: `SMS not delivered (${twilioError}). Use code 0000 to continue.` }),
       });
     }
@@ -189,20 +175,20 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "txnId and otp are required" }, { status: 400 });
       }
 
-      const session = otpStore.get(txnId);
+      const rows = await db.select().from(otpSessions).where(eq(otpSessions.id, txnId));
+      const session = rows[0];
 
-      if (!session || Date.now() > session.expiresAt) {
-        otpStore.delete(txnId ?? "");
+      if (!session || session.expiresAt.getTime() < Date.now()) {
+        if (session) await db.delete(otpSessions).where(eq(otpSessions.id, txnId)).catch(() => {});
         return NextResponse.json(
           { error: "OTP expired. Please request a new one." },
           { status: 400 }
         );
       }
 
-      session.attempts += 1;
-
-      if (session.attempts > 3) {
-        otpStore.delete(txnId);
+      const newAttempts = session.attempts + 1;
+      if (newAttempts > 3) {
+        await db.delete(otpSessions).where(eq(otpSessions.id, txnId)).catch(() => {});
         return NextResponse.json(
           { error: "Too many incorrect attempts. Please request a new OTP." },
           { status: 400 }
@@ -210,7 +196,11 @@ export async function POST(req: NextRequest) {
       }
 
       if (session.otp !== otp && otp !== "0000") {
-        const remaining = 3 - session.attempts;
+        await db.update(otpSessions)
+          .set({ attempts: newAttempts })
+          .where(eq(otpSessions.id, txnId))
+          .catch(() => {});
+        const remaining = 3 - newAttempts;
         return NextResponse.json(
           { error: `Incorrect OTP. ${remaining} attempt${remaining !== 1 ? "s" : ""} remaining.` },
           { status: 400 }
@@ -218,21 +208,21 @@ export async function POST(req: NextRequest) {
       }
 
       const verifiedMobile = session.mobile;
-      otpStore.delete(txnId);
+      await db.delete(otpSessions).where(eq(otpSessions.id, txnId)).catch(() => {});
 
       const abhaProfile = await lookupABHAByMobile(verifiedMobile, otp);
 
       return NextResponse.json({
         success: true,
         profile: {
-          mobile: verifiedMobile,
-          name: abhaProfile?.name ?? "Verified Patient",
-          abhaNumber: abhaProfile?.abhaNumber,
+          mobile:      verifiedMobile,
+          name:        abhaProfile?.name ?? "Verified Patient",
+          abhaNumber:  abhaProfile?.abhaNumber,
           abhaAddress: abhaProfile?.abhaAddress,
-          gender: abhaProfile?.gender,
+          gender:      abhaProfile?.gender,
           yearOfBirth: abhaProfile?.yearOfBirth,
           loginMethod: "mobile",
-          abhaLinked: Boolean(abhaProfile?.abhaNumber),
+          abhaLinked:  Boolean(abhaProfile?.abhaNumber),
         },
       });
     }

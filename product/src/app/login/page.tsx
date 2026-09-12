@@ -189,7 +189,7 @@ export default function LoginPage() {
     return (
       <KioskScreen>
         <KioskHeader
-          title="OTP दर्ज करें"
+          title={t(lang, "enterOTP")}
           subtitle="Enter OTP"
           onBack={() => { setMethod(otpContext as LoginMethod); setOtpInput(""); }}
           progress={15}
@@ -199,10 +199,10 @@ export default function LoginPage() {
           <div className="text-center space-y-1">
             <p className="text-5xl">📱</p>
             <h2 className="text-xl font-bold text-neutral-900">
-              OTP भेजा गया / OTP Sent
+              {t(lang, "otpSentMessage")}
             </h2>
             <p className="text-sm text-neutral-400">
-              {otpContext === "mobile" ? "आपके मोबाइल पर OTP भेजा गया है" : "OTP sent to your registered mobile"}
+              {contextLabel}
             </p>
           </div>
 

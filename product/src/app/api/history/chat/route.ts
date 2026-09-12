@@ -221,8 +221,8 @@ function buildSummaryPrompt(
     .map((m) => `${m.role === "ai" ? "Doctor" : "Patient"}: ${m.text}`)
     .join("\n");
 
-  const ayushFields =
-    mode === "ayush"
+  const isAyushMode = mode === "ayush" || (mode as string) === "combined";
+  const ayushFields = isAyushMode
       ? `
   "prakriti": "Vata/Pitta/Kapha constitution based on patient's description",
   "vikriti": "current dosha imbalance",
@@ -570,10 +570,10 @@ export async function POST(req: NextRequest) {
           currentMedications: byStage("drug_allergy"),
           suggestedICD10: "R00-R99 — Symptoms and signs",
           redFlags: [],
-          ayushNote: mode === "ayush"
-            ? `Prakriti: ${byStage("ayush_prakriti")}. Agni: ${byStage("ayush_agni")}. Koshtha: ${byStage("ayush_koshtha")}.`
+          ayushNote: (mode === "ayush" || (mode as string) === "combined")
+            ? `Prakriti: ${byStage("ayush_prakriti")}. Vikriti: ${byStage("ayush_vikriti")}. Agni: ${byStage("ayush_agni")}. Koshtha: ${byStage("ayush_koshtha")}. Ahara-Vihara: ${byStage("ayush_ahara_vihara")}. Nidana: ${byStage("ayush_nidana")}. Samprapti: ${byStage("ayush_samprapti")}.`
             : "Not applicable",
-          ...(mode === "ayush" ? {
+          ...((mode === "ayush" || (mode as string) === "combined") ? {
             prakriti: byStage("ayush_prakriti"),
             vikriti: byStage("ayush_vikriti"),
             agniType: byStage("ayush_agni"),

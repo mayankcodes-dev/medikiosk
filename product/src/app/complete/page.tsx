@@ -86,7 +86,7 @@ export default function CompletePage() {
             className="h-14 w-14 rounded-full border-4 border-brand-100 border-t-brand-600"
           />
           <p className="text-neutral-500 font-semibold">कतार में जोड़ा जा रहा है…</p>
-          <p className="text-xs text-neutral-400">Adding to doctor's queue…</p>
+          <p className="text-xs text-neutral-400">Adding to doctor&apos;s queue…</p>
         </KioskBody>
       </KioskScreen>
     );

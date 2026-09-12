@@ -57,7 +57,10 @@ export type TranslationKey =
   | "mobileNumber"
   | "loginViaMobileOtp"
   | "mobileOtpDesc"
-  | "recommendedBadge";
+  | "recommendedBadge"
+  | "doYouHaveDocs"
+  | "historyComplete";
+
 
 type Translations = Record<TranslationKey, string>;
 type LanguageTranslations = Record<string, Translations>;
@@ -119,6 +122,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "मोबाइल OTP से लॉगिन",
     mobileOtpDesc: "OTP आपके नंबर पर भेजा जाएगा। उसी मोबाइल से ABHA अपने आप मिल जाएगा।",
     recommendedBadge: "अनुशंसित",
+    doYouHaveDocs: "क्या आपके पास कोई पुराना दस्तावेज़ है?",
+    historyComplete: "इतिहास पूरा हुआ",
   },
 
   en: {
@@ -177,6 +182,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "Login via OTP on Mobile",
     mobileOtpDesc: "OTP sent to your number. ABHA linked to same mobile will be auto-fetched.",
     recommendedBadge: "Recommended",
+    doYouHaveDocs: "Do you have any old documents?",
+    historyComplete: "History Complete",
   },
 
   bn: {
@@ -235,6 +242,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "মোবাইল OTP দিয়ে লগিন",
     mobileOtpDesc: "আপনার নম্বরে OTP পাঠানো হবে। একই মোবাইলে ABHA স্বয়ংক্রিয়ভাবে আনা হবে।",
     recommendedBadge: "প্রস্তাবিত",
+    doYouHaveDocs: "আপনার কাছে কোনো পুরানো নথি আছে কি?",
+    historyComplete: "ইতিহাস সম্পন্ন",
   },
 
   ta: {
@@ -293,6 +302,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "மொபைல் OTP மூலம் உள்நுழைய",
     mobileOtpDesc: "உங்கள் எண்ணுக்கு OTP அனுப்பப்படும். அதே மொபைலுடன் இணைந்த ABHA தானாக கிடைக்கும்.",
     recommendedBadge: "பரிந்துரைக்கப்பட்டது",
+    doYouHaveDocs: "உங்களிடம் ஏதாவது பழைய ஆவணங்கள் உள்ளதா?",
+    historyComplete: "வரலாறு முடிந்தது",
   },
 
   te: {
@@ -351,6 +362,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "మొబైల్ OTP తో లాగిన్",
     mobileOtpDesc: "OTP మీ నంబర్‌కు పంపబడుతుంది. అదే మొబైల్‌కు లింక్ అయిన ABHA స్వయంచాలకంగా వస్తుంది.",
     recommendedBadge: "సిఫార్సు చేయబడింది",
+    doYouHaveDocs: "మీ దగ్గర పాత పత్రాలు ఉన్నాయా?",
+    historyComplete: "చరిత్ర పూర్తయింది",
   },
 
   mr: {
@@ -409,6 +422,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "मोबाईल OTP ने लॉगिन",
     mobileOtpDesc: "OTP तुमच्या नंबरवर पाठवला जाईल. त्याच मोबाईलशी जोडलेला ABHA आपोआप मिळेल.",
     recommendedBadge: "शिफारस केलेले",
+    doYouHaveDocs: "तुमच्याकडे कोणते जुने कागदपत्रे आहेत का?",
+    historyComplete: "इतिहास पूर्ण झाला",
   },
 
   gu: {
@@ -467,6 +482,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "મોબાઈલ OTP થી લૉગિન",
     mobileOtpDesc: "OTP તમારા નંબર પર મોકલવામાં આવશે. તે જ મોબાઈલ સાથે જોડાયેલ ABHA આપોઆપ મળશે.",
     recommendedBadge: "ભલામણ",
+    doYouHaveDocs: "શું તમારી પાસે કોઈ જૂના દસ્તાવેજ છે?",
+    historyComplete: "ઇતિહાસ પૂર્ણ",
   },
 
   kn: {
@@ -525,6 +542,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "ಮೊಬೈಲ್ OTP ಮೂಲಕ ಲಾಗಿನ್",
     mobileOtpDesc: "OTP ನಿಮ್ಮ ಸಂಖ್ಯೆಗೆ ಕಳಿಸಲಾಗುತ್ತದೆ. ಅದೇ ಮೊಬೈಲ್‌ಗೆ ಲಿಂಕ್ ಆದ ABHA ತನ್ನಷ್ಟಕ್ಕೆ ಬರುತ್ತದೆ.",
     recommendedBadge: "ಶಿಫಾರಸು",
+    doYouHaveDocs: "ನಿಮ್ಮ ಬಳಿ ಯಾವುದಾದರೂ ಹಳೆಯ ದಾಖಲೆಗಳಿವೆಯೇ?",
+    historyComplete: "ಇತಿಹಾಸ ಪೂರ್ಣವಾಯಿತು",
   },
 
   ml: {
@@ -583,6 +602,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "മൊബൈൽ OTP വഴി ലോഗിൻ",
     mobileOtpDesc: "OTP നിങ്ങളുടെ നമ്പറിൽ അയക്കും. അതേ മൊബൈലിൽ ലിങ്ക് ചെയ്ത ABHA സ്വയം ലഭിക്കും.",
     recommendedBadge: "ശുപാർശ ചെയ്യുന്നത്",
+    doYouHaveDocs: "നിങ്ങളുടെ പക്കൽ പഴയ രേഖകൾ ഉണ്ടോ?",
+    historyComplete: "ചരിത്രം പൂർത്തിയായി",
   },
 
   pa: {
@@ -641,6 +662,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "ਮੋਬਾਈਲ OTP ਨਾਲ ਲੌਗਿਨ",
     mobileOtpDesc: "OTP ਤੁਹਾਡੇ ਨੰਬਰ ਤੇ ਭੇਜਿਆ ਜਾਵੇਗਾ। ਉਸੇ ਮੋਬਾਇਲ ਨਾਲ ਜੁੜਿਆ ABHA ਆਪਣੇ ਆਪ ਮਿਲੇਗਾ।",
     recommendedBadge: "ਸਿਫਾਰਸ਼ੀ",
+    doYouHaveDocs: "ਕੀ ਤੁਹਾਡੇ ਕੋਲ ਕੋਈ ਪੁਰਾਣੇ ਦਸਤਾਵੇਜ਼ ਹਨ?",
+    historyComplete: "ਇਤਿਹਾਸ ਪੂਰਾ ਹੋਇਆ",
   },
 
   ur: {
@@ -699,6 +722,8 @@ export const TRANSLATIONS: LanguageTranslations = {
     loginViaMobileOtp: "موبائل OTP سے لاگ ان",
     mobileOtpDesc: "OTP آپ کے نمبر پر بھیجا جائے گا۔ اسی موبائل سے جڑا ABHA خودکار مل جائے گا۔",
     recommendedBadge: "تجویز کردہ",
+    doYouHaveDocs: "کیا آپ کے پاس کوئی پرانے دستاویزات ہیں؟",
+    historyComplete: "تاریخ مکمل ہوئی",
   },
 };
 

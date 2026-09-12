@@ -93,3 +93,16 @@ export const queueEntries = pgTable("queue_entries", {
   submittedAt:    timestamp("submitted_at").defaultNow().notNull(),
   updatedAt:      timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ── OTP Sessions ──────────────────────────────────────────────────────────────
+// Persisted so serverless cold-starts don't lose in-flight OTPs.
+// Application-level TTL: rows with expiresAt < now() are treated as expired.
+export const otpSessions = pgTable("otp_sessions", {
+  id:         text("id").primaryKey(),             // random UUID = session token
+  mobile:     text("mobile").notNull(),             // 10-digit number, no country code
+  otp:        text("otp").notNull(),                // 6-digit plaintext (demo); hash in prod
+  expiresAt:  timestamp("expires_at").notNull(),    // created_at + 5 min
+  attempts:   integer("attempts").notNull().default(0),
+  createdAt:  timestamp("created_at").defaultNow().notNull(),
+});
+

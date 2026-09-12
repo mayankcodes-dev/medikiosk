@@ -182,7 +182,7 @@ export default function ScanPage() {
         />
         <KioskBody className="space-y-3">
           <p className="text-sm text-neutral-500 text-center">
-            क्या आपके पास कोई पुराना दस्तावेज़ है?
+            {t(lang, "doYouHaveDocs")}
             <br />
             <span className="text-xs text-neutral-400">Do you have any old documents?</span>
           </p>

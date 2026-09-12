@@ -68,7 +68,10 @@ export async function GET(req: NextRequest) {
   const sessionId = crypto.randomUUID();
   const facilityId = process.env.ABDM_FACILITY_ID ?? "DEV_FACILITY";
   const callbackBase =
-    process.env.NEXT_PUBLIC_CALLBACK_URL ?? "https://localhost:3000";
+    process.env.NEXT_PUBLIC_CALLBACK_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    "https://app.medikiosk.mayankcodes.dev";
+
 
   sessions.set(sessionId, {
     status: "pending",
