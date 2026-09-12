@@ -199,21 +199,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Basic base64 magic-byte check ────────────────────────────────────────
-    // Verify the base64 header matches the claimed MIME to catch MIME spoofing.
-    // Check first 8 bytes of decoded data.
-    const MAGIC: Record<string, RegExp> = {
-      "image/jpeg": /^\/9j\//,        // JPEG: /9j/
-      "image/jpg":  /^\/9j\//,
-      "image/png":  /^iVBORw0KGgo/,  // PNG: iVBORw0KGgo
-      "image/webp": /^UklGR/,        // WebP: RIFF
-      "application/pdf": /^JVBERi0/,  // PDF: %PDF-
-    };
-    const magic = MAGIC[cleanMime];
-    if (magic && !magic.test(imageBase64.slice(0, 16))) {
+    // ── Basic size check on the base64 payload ────────────────────────────
+    // 100 MB raw ≈ ~136 MB base64. Reject obviously oversized payloads.
+    if (imageBase64.length > 140_000_000) {
       return NextResponse.json(
-        { error: "File content does not match the declared type. Please upload an unmodified file." },
-        { status: 415 }
+        { error: "File is too large. Maximum size is 100 MB." },
+        { status: 413 }
       );
     }
 
