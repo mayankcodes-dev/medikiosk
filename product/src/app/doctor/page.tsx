@@ -39,6 +39,7 @@ export default function DoctorDashboard() {
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [pinLoading, setPinLoading] = useState(false);
+  const [sessionToken, setSessionToken] = useState(""); // HMAC-signed doctor token
   const [data, setData] = useState<QueueData | null>(null);
   const [selected, setSelected] = useState<QueuePatient | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -101,7 +102,10 @@ export default function DoctorDashboard() {
   const updateStatus = useCallback(async (token: string, status: QueuePatient["status"]) => {
     await fetch("/api/queue/update", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${sessionToken}`,
+      },
       body: JSON.stringify({ token, status }),
     });
     await fetchQueue();
@@ -109,7 +113,7 @@ export default function DoctorDashboard() {
     setSelected((prev) =>
       prev?.token === token ? { ...prev, status } : prev
     );
-  }, [fetchQueue]);
+  }, [fetchQueue, sessionToken]);
 
   // ── PIN screen ────────────────────────────────────────────────
   if (!authed) {
@@ -126,6 +130,7 @@ export default function DoctorDashboard() {
         const data = await res.json();
         if (data.success) {
           setAuthed(true);
+          setSessionToken(data.sessionToken ?? "");
         } else {
           setPinError(data.error ?? "Incorrect PIN");
           setPin("");

@@ -14,6 +14,14 @@ import crypto from "crypto";
 import { db, otpSessions } from "@/lib/db";
 import { eq, lt } from "drizzle-orm";
 
+// ── OTP hashing ──────────────────────────────────────────────────────────────
+// Hash OTPs before storing in DB — prevents plaintext credential exposure if DB
+// is ever compromised. Uses HMAC-SHA256 with the app secret as salt.
+function hashOtp(otp: string): string {
+  const secret = process.env.NEXTAUTH_SECRET ?? "medikiosk-otp-salt";
+  return crypto.createHmac("sha256", secret).update(otp).digest("hex");
+}
+
 // ── Twilio SMS ────────────────────────────────────────────────────────────────
 
 async function sendViaTwilio(mobile: string, otp: string): Promise<void> {
@@ -140,6 +148,7 @@ export async function POST(req: NextRequest) {
 
       const newOtp   = Math.floor(100000 + Math.random() * 900000).toString();
       const newTxnId = crypto.randomUUID();
+      const maskedMobile = `+91 ${mobile.slice(0, 2)}XXXXXX${mobile.slice(-2)}`;
 
       let twilioOk   = false;
       let twilioError = "";
@@ -151,11 +160,11 @@ export async function POST(req: NextRequest) {
         console.warn("[mobile-otp] Twilio failed (demo mode fallback):", twilioError);
       }
 
-      // Persist OTP to Neon DB (survives cold starts)
+      // Persist HASHED OTP to Neon DB — plaintext never stored
       await db.insert(otpSessions).values({
         id:        newTxnId,
-        mobile,
-        otp:       newOtp,
+        mobile,                        // mobile stored for rate-limiting, not for display
+        otp:       hashOtp(newOtp),    // SHA-256 HMAC — not reversible
         expiresAt: new Date(Date.now() + 5 * 60 * 1000),
         attempts:  0,
       });
@@ -163,7 +172,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         txnId: newTxnId,
-        masked: `+91 ${mobile.slice(0, 2)}XXXXXX${mobile.slice(-2)}`,
+        masked: maskedMobile,
         expiresInSeconds: 300,
         ...(twilioOk ? {} : { devOtp: "0000", devNote: `SMS not delivered (${twilioError}). Use code 0000 to continue.` }),
       });
@@ -195,7 +204,19 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (session.otp !== otp && otp !== "0000") {
+      // Compare hashes — 0000 universal bypass checked before hashing
+      const isUniversalBypass = otp === "0000";
+      const otpHash = hashOtp(otp);
+      const hashesMatch = (() => {
+        try {
+          return crypto.timingSafeEqual(
+            Buffer.from(session.otp, "hex"),
+            Buffer.from(otpHash, "hex")
+          );
+        } catch { return false; }
+      })();
+
+      if (!isUniversalBypass && !hashesMatch) {
         await db.update(otpSessions)
           .set({ attempts: newAttempts })
           .where(eq(otpSessions.id, txnId))
@@ -208,6 +229,7 @@ export async function POST(req: NextRequest) {
       }
 
       const verifiedMobile = session.mobile;
+
       await db.delete(otpSessions).where(eq(otpSessions.id, txnId)).catch(() => {});
 
       const abhaProfile = await lookupABHAByMobile(verifiedMobile, otp);

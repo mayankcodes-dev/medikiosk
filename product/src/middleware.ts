@@ -41,11 +41,14 @@ export function middleware(req: NextRequest) {
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("X-Frame-Options", "DENY");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.headers.set("Permissions-Policy", "camera=(), microphone=(self)");
+  // camera=self needed for document scan page; microphone=self for voice interview
+  res.headers.set("Permissions-Policy", "camera=(self), microphone=(self), geolocation=()");
   res.headers.set(
     "Strict-Transport-Security",
     "max-age=63072000; includeSubDomains; preload"
   );
+  // Add request ID for distributed tracing
+  res.headers.set("X-Request-ID", crypto.randomUUID());
   res.headers.set(
     "Content-Security-Policy",
     [
@@ -60,6 +63,7 @@ export function middleware(req: NextRequest) {
       "frame-ancestors 'none'",
     ].join("; ")
   );
+
 
   // ── Rate limit only API routes ────────────────────────────────
   if (pathname.startsWith("/api/")) {

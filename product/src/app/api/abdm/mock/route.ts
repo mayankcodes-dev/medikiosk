@@ -66,10 +66,10 @@ export async function POST(req: NextRequest) {
       sandboxPatient: matchedPatient,
     });
 
-    console.log(
-      `[Virtual ABDM] OTP for ${rawId}: ${mockOtp} (Matched: ${
+    console.info(
+      `[Virtual ABDM] OTP sent. ID: ${rawId.slice(0, 4)}XXXX${rawId.slice(-4)} → Matched: ${
         matchedPatient ? matchedPatient.name : "Generated profile"
-      })`
+      }`
     );
 
     return NextResponse.json({
