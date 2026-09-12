@@ -7,11 +7,6 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { verifyDoctorToken, createDoctorToken } from "@/lib/doctorAuth";
 
-// ── Fail loud if DOCTOR_PIN not set in production ──────────────────────────
-if (process.env.NODE_ENV === "production" && !process.env.DOCTOR_PIN) {
-  console.error("[doctor-auth] CRITICAL: DOCTOR_PIN env var is not set in production!");
-}
-
 // ── Brute-force lockout (in-memory, per-IP) ────────────────────────────────
 interface LockEntry { attempts: number; lockedUntil: number; }
 const lockStore = new Map<string, LockEntry>();
@@ -37,6 +32,11 @@ function safeCompare(a: string, b: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  // Warn at runtime (not build time) when DOCTOR_PIN not configured in prod
+  if (process.env.NODE_ENV === "production" && !process.env.DOCTOR_PIN) {
+    console.error("[doctor-auth] CRITICAL: DOCTOR_PIN env var is not set in production!");
+  }
+
   try {
     const body = await req.json() as Record<string, unknown>;
     const pin = typeof body.pin === "string" ? body.pin.trim() : "";
