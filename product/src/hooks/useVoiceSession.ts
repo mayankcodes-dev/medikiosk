@@ -190,8 +190,25 @@ export function useVoiceSession({
         recorderRef.current = recorder;
         await recorder.start();
         return; // stop() called by stopListening()
-      } catch (e) {
-        console.warn("[Voice] Bhashini recorder failed, falling back:", e);
+      } catch (e: unknown) {
+        const name = e instanceof Error ? e.name : "";
+        const msg  = e instanceof Error ? e.message : String(e);
+        if (name === "NotAllowedError" || msg.includes("Permission")) {
+          onError?.("🔒 Microphone permission denied. Tap the 🔒 in the address bar → allow microphone.");
+          setState("error");
+          return;
+        }
+        if (name === "NotFoundError" || msg.includes("audio-capture") || msg.includes("could not start audio")) {
+          onError?.("🎤 No microphone found. Please connect a mic, or use touch/type input below.");
+          setState("error");
+          return;
+        }
+        if (name === "NotReadableError") {
+          onError?.("🎤 Microphone is busy (used by another app). Close other apps and try again.");
+          setState("error");
+          return;
+        }
+        console.warn("[Voice] Bhashini recorder failed, falling back to Web Speech:", e);
         // fall through to Web Speech API
       }
     }
@@ -240,13 +257,28 @@ export function useVoiceSession({
     };
 
     recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
-      if (e.error === "no-speech") setState("idle");
-      else if (e.error === "network") {
-        // Network error usually means regional language not supported by Web Speech
+      if (e.error === "no-speech") { setState("idle"); return; }
+      if (e.error === "audio-capture") {
+        onError?.(
+          "🎤 Microphone not available. Please allow mic access in browser settings, or use touch/type input below."
+        );
+        setState("error");
+        return;
+      }
+      if (e.error === "not-allowed") {
+        onError?.(
+          "🔒 Microphone permission denied. Tap the 🔒 icon in the browser address bar → allow microphone."
+        );
+        setState("error");
+        return;
+      }
+      if (e.error === "network") {
         onError?.("माइक नहीं चला / Mic unavailable for this language. Please type your answer.");
         setState("error");
+        return;
       }
-      else { onError?.(`Mic error: ${e.error}`); setState("error"); }
+      onError?.(`Mic error: ${e.error}`);
+      setState("error");
     };
 
     recognition.onend = () => { if (state === "listening") setState("idle"); };

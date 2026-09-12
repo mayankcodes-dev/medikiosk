@@ -929,7 +929,18 @@ export default function HistoryPage() {
             )}
 
             {voiceError && (
-              <p className="text-xs text-red-500 text-center">{voiceError}</p>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                <span className="text-base shrink-0 mt-0.5">⚠️</span>
+                <div className="min-w-0">
+                  <p className="text-xs text-amber-800 font-semibold leading-snug">{voiceError}</p>
+                  <p className="text-[10px] text-amber-600 mt-0.5">Use the touch chips or text box below to answer.</p>
+                </div>
+                <button
+                  onClick={() => setVoiceError("")}
+                  className="ml-auto text-amber-400 hover:text-amber-600 text-sm shrink-0"
+                  aria-label="Dismiss"
+                >✕</button>
+              </div>
             )}
 
             <p className="text-xs text-neutral-400">{t(lang, "orTapBelow")}</p>
