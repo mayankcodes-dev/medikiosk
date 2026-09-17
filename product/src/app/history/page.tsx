@@ -958,7 +958,7 @@ export default function HistoryPage() {
         setAiLoading(false);
       }
     } else {
-      setCurrentQuestion(""); // clear stale question while loading next
+      // Keep previous question visible while loading - aiLoading spinner shows on Next button
       await fetchNextQuestion(nextStage as Stage, newMessages);
     }
   }, [selectedChips, patientInput, messages, currentQuestion, stage, stageIndex, lang, fetchNextQuestion]);

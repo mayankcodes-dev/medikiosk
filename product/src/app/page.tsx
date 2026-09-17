@@ -69,9 +69,7 @@ export default function LanguageSelectionPage() {
                 {lang.name}
               </span>
               <span className="text-[11px] text-neutral-400">{lang.nameEn}</span>
-              {lang.tier === 2 && (
-                <span className="text-[9px] text-neutral-300 uppercase tracking-wide">beta</span>
-              )}
+
             </button>
           ))}
         </div>
