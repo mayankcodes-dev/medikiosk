@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { COMMON_SYMPTOMS } from "@/lib/constants";
 import { t } from "@/lib/translations";
 import { useVoiceSession } from "@/hooks/useVoiceSession";
+import { resilientFetch } from "@/lib/resilientFetch";
 import type { ChatMessage, StructuredSummary, InterviewMode } from "@/app/api/history/chat/route";
 
 type Stage =
@@ -23,20 +24,27 @@ type Stage =
   | "family_history" | "personal_history" | "review_of_systems"
   | "ayush_prakriti" | "ayush_vikriti" | "ayush_agni"
   | "ayush_koshtha" | "ayush_ahara_vihara" | "ayush_nidana" | "ayush_samprapti"
+  | "ayush_sara" | "ayush_samhanana" | "ayush_satmya"
+  | "ayush_pramana" | "ayush_sattva" | "ayush_ahara_shakti" | "ayush_vyayama_shakti" | "ayush_vaya"
   | "summary";
 
-// Single combined interview — allopathic clinical + AYUSH Dashavidha Pariksha
-const COMBINED_STAGES: Stage[] = [
+// Allopathic-only stages (no AYUSH params)
+const ALLOPATHIC_STAGES: Stage[] = [
+  "chief_complaint", "hpi",
+  "past_history", "drug_allergy",
+  "family_history", "personal_history", "review_of_systems",
+];
+
+// AYUSH stages: allopathic clinical + full Dashavidha Pariksha
+const AYUSH_ONLY_STAGES: Stage[] = [
   "chief_complaint", "hpi",
   "past_history", "drug_allergy",
   "family_history", "personal_history", "review_of_systems",
   "ayush_prakriti", "ayush_vikriti", "ayush_agni",
   "ayush_koshtha", "ayush_ahara_vihara", "ayush_nidana", "ayush_samprapti",
+  "ayush_sara", "ayush_samhanana", "ayush_satmya",
+  "ayush_pramana", "ayush_sattva", "ayush_ahara_shakti", "ayush_vyayama_shakti", "ayush_vaya",
 ];
-
-// Kept as aliases so API calls still work (chat route accepts mode string)
-const ALLOPATHIC_STAGES = COMBINED_STAGES;
-const AYUSH_STAGES = COMBINED_STAGES;
 
 
 // Multilingual stage labels
@@ -49,7 +57,10 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "सिस्टम समीक्षा",
       ayush_prakriti: "प्रकृति", ayush_vikriti: "विकृति", ayush_agni: "अग्नि",
       ayush_koshtha: "कोष्ठ", ayush_ahara_vihara: "आहार-विहार",
-      ayush_nidana: "निदान", ayush_samprapti: "सम्प्राप्ति", summary: "सारांश",
+      ayush_nidana: "निदान", ayush_samprapti: "सम्प्राप्ति",
+      ayush_sara: "सार", ayush_samhanana: "संहनन", ayush_satmya: "सात्म्य",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
+      summary: "सारांश",
     },
     en: {
       chief_complaint: "Problem", hpi: "HPI",
@@ -58,7 +69,10 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "Review of Systems",
       ayush_prakriti: "Prakriti", ayush_vikriti: "Vikriti", ayush_agni: "Agni",
       ayush_koshtha: "Koshtha", ayush_ahara_vihara: "Ahara-Vihara",
-      ayush_nidana: "Nidana", ayush_samprapti: "Samprapti", summary: "Summary",
+      ayush_nidana: "Nidana", ayush_samprapti: "Samprapti",
+      ayush_sara: "Sara", ayush_samhanana: "Samhanana", ayush_satmya: "Satmya",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
+      summary: "Summary",
     },
     ta: {
       chief_complaint: "பிரச்சினை", hpi: "நடப்பு நோய்",
@@ -67,7 +81,10 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "உறுப்பு பரிசோதனை",
       ayush_prakriti: "பிரகிருதி", ayush_vikriti: "விகிருதி", ayush_agni: "அக்னி",
       ayush_koshtha: "கோஷ்ட", ayush_ahara_vihara: "ஆகார-விஹார",
-      ayush_nidana: "நிதான", ayush_samprapti: "சம்ப்ராப்தி", summary: "சுருக்கம்",
+      ayush_nidana: "நிதான", ayush_samprapti: "சம்ப்ராப்தி",
+      ayush_sara: "சாரம்", ayush_samhanana: "சம்ஹனனம்", ayush_satmya: "சாத்ம்யம்",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
+      summary: "சுருக்கம்",
     },
     te: {
       chief_complaint: "సమస్య", hpi: "ప్రస్తుత అనారోగ్యం",
@@ -76,7 +93,9 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "అవయవ సమీక్ష",
       ayush_prakriti: "ప్రకృతి", ayush_vikriti: "వికృతి", ayush_agni: "అగ్ని",
       ayush_koshtha: "కోష్ఠ", ayush_ahara_vihara: "ఆహార-విహార",
-      ayush_nidana: "నిదాన", ayush_samprapti: "సంప్రాప్తి", summary: "సారాంశం",
+      ayush_nidana: "నిదాన", ayush_samprapti: "సంప్రాప్తి",
+      ayush_sara: "Sara", ayush_samhanana: "Samhanana", ayush_satmya: "Satmya", summary: "సారాంశం",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
     },
     bn: {
       chief_complaint: "সমস্যা", hpi: "বর্তমান অসুস্থতা",
@@ -85,7 +104,10 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "সিস্টেম পর্যালোচনা",
       ayush_prakriti: "প্রকৃতি", ayush_vikriti: "বিকৃতি", ayush_agni: "অগ্নি",
       ayush_koshtha: "কোষ্ঠ", ayush_ahara_vihara: "আহার-বিহার",
-      ayush_nidana: "নিদান", ayush_samprapti: "সম্প্রাপ্তি", summary: "সারাংশ",
+      ayush_nidana: "নিদান", ayush_samprapti: "সম্প্রাপ্তি",
+      ayush_sara: "সার", ayush_samhanana: "সংহনন", ayush_satmya: "সাত্ম্য",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
+      summary: "সারাংশ",
     },
     mr: {
       chief_complaint: "समस्या", hpi: "सद्य आजार",
@@ -94,7 +116,10 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "अवयव आढावा",
       ayush_prakriti: "प्रकृती", ayush_vikriti: "विकृती", ayush_agni: "अग्नी",
       ayush_koshtha: "कोष्ठ", ayush_ahara_vihara: "आहार-विहार",
-      ayush_nidana: "निदान", ayush_samprapti: "संप्राप्ती", summary: "सारांश",
+      ayush_nidana: "निदान", ayush_samprapti: "संप्राप्ती",
+      ayush_sara: "सार", ayush_samhanana: "संहनन", ayush_satmya: "सात्म्य",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
+      summary: "सारांश",
     },
     gu: {
       chief_complaint: "સમસ્યા", hpi: "વર્તમાન બીમારી",
@@ -103,7 +128,10 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "પ્રણાલી સમીક્ષા",
       ayush_prakriti: "પ્રકૃતિ", ayush_vikriti: "વિકૃતિ", ayush_agni: "અગ્નિ",
       ayush_koshtha: "કોષ્ઠ", ayush_ahara_vihara: "આહાર-વિહાર",
-      ayush_nidana: "નિદાન", ayush_samprapti: "સંપ્રાપ્તિ", summary: "સારાંશ",
+      ayush_nidana: "નિદાન", ayush_samprapti: "સંપ્રાપ્તિ",
+      ayush_sara: "સાર", ayush_samhanana: "સંહનન", ayush_satmya: "સાત્મ્ય",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
+      summary: "સારાંશ",
     },
     kn: {
       chief_complaint: "ಸಮಸ್ಯೆ", hpi: "ಪ್ರಸ್ತುತ ಕಾಯಿಲೆ",
@@ -112,7 +140,10 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "ಅವಯವ ಸಮೀಕ್ಷೆ",
       ayush_prakriti: "ಪ್ರಕೃತಿ", ayush_vikriti: "ವಿಕೃತಿ", ayush_agni: "ಅಗ್ನಿ",
       ayush_koshtha: "ಕೋಷ್ಠ", ayush_ahara_vihara: "ಆಹಾರ-ವಿಹಾರ",
-      ayush_nidana: "ನಿದಾನ", ayush_samprapti: "ಸಂಪ್ರಾಪ್ತಿ", summary: "ಸಾರಾಂಶ",
+      ayush_nidana: "ನಿದಾನ", ayush_samprapti: "ಸಂಪ್ರಾಪ್ತಿ",
+      ayush_sara: "ಸಾರ", ayush_samhanana: "ಸಂಹನನ", ayush_satmya: "ಸಾತ್ಮ್ಯ",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
+      summary: "ಸಾರಾಂಶ",
     },
     ml: {
       chief_complaint: "പ്രശ്നം", hpi: "നിലവിലെ അസുഖം",
@@ -121,7 +152,9 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "അവയവ അവലോകനം",
       ayush_prakriti: "പ്രകൃതി", ayush_vikriti: "വികൃതി", ayush_agni: "അഗ്നി",
       ayush_koshtha: "കോഷ്ഠ", ayush_ahara_vihara: "ആഹാര-വിഹാര",
-      ayush_nidana: "നിദാന", ayush_samprapti: "സംപ്രാപ്തി", summary: "സംഗ്രഹം",
+      ayush_nidana: "നിദാന", ayush_samprapti: "സംപ്രാപ്തി",
+      ayush_sara: "Sara", ayush_samhanana: "Samhanana", ayush_satmya: "Satmya", summary: "സംഗ്രഹം",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
     },
     pa: {
       chief_complaint: "ਸਮੱਸਿਆ", hpi: "ਵਰਤਮਾਨ ਬਿਮਾਰੀ",
@@ -130,7 +163,10 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "ਅੰਗ ਸਮੀਖਿਆ",
       ayush_prakriti: "ਪ੍ਰਕਿਰਤੀ", ayush_vikriti: "ਵਿਕ੍ਰਿਤੀ", ayush_agni: "ਅਗਨੀ",
       ayush_koshtha: "ਕੋਸ਼ਠ", ayush_ahara_vihara: "ਆਹਾਰ-ਵਿਹਾਰ",
-      ayush_nidana: "ਨਿਦਾਨ", ayush_samprapti: "ਸੰਪ੍ਰਾਪਤੀ", summary: "ਸਾਰ",
+      ayush_nidana: "ਨਿਦਾਨ", ayush_samprapti: "ਸੰਪ੍ਰਾਪਤੀ",
+      ayush_sara: "ਸਾਰ-ਤੱਤ", ayush_samhanana: "ਸੰਹਨਨ", ayush_satmya: "ਸਾਤਮਯ",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
+      summary: "ਸਾਰ",
     },
     ur: {
       chief_complaint: "مسئلہ", hpi: "موجودہ بیماری",
@@ -139,7 +175,10 @@ function getStageLabels(lang: string): Record<Stage, string> {
       review_of_systems: "نظام کا جائزہ",
       ayush_prakriti: "پرکرتی", ayush_vikriti: "وکرتی", ayush_agni: "اگنی",
       ayush_koshtha: "کوشٹھ", ayush_ahara_vihara: "آہار-وہار",
-      ayush_nidana: "نیدان", ayush_samprapti: "سمپراپتی", summary: "خلاصہ",
+      ayush_nidana: "نیدان", ayush_samprapti: "سمپراپتی",
+      ayush_sara: "سار", ayush_samhanana: "سنہنن", ayush_satmya: "ساتمیہ",
+      ayush_pramana: "Pramana", ayush_sattva: "Sattva", ayush_ahara_shakti: "Ahara Shakti", ayush_vyayama_shakti: "Vyayama Shakti", ayush_vaya: "Vaya",
+      summary: "خلاصہ",
     },
   };
   return labels[lang] ?? labels["hi"];
@@ -168,16 +207,34 @@ function buildSummaryFromMessages(messages: ChatMessage[]): StructuredSummary {
   const ahara = byStage("ayush_ahara_vihara");
   const nidana = byStage("ayush_nidana");
   const samprapti = byStage("ayush_samprapti");
+  const sara = byStage("ayush_sara");
+  const samhanana = byStage("ayush_samhanana");
+  const satmya = byStage("ayush_satmya");
+  const pramana = byStage("ayush_pramana");
+  const sattva = byStage("ayush_sattva");
+  const aharaShakti = byStage("ayush_ahara_shakti");
+  const vyayamaShakti = byStage("ayush_vyayama_shakti");
+  const vaya = byStage("ayush_vaya");
 
-  // Simple red flag detection
+  // Comprehensive red flag detection (multilingual)
   const allText = messages.map((m) => m.text).join(" ").toLowerCase();
   const redFlags: string[] = [];
-  if (/chest pain|سینہ درد|ਛਾਤੀ ਦਰਦ|흉통|सीने में दर्द/.test(allText)) redFlags.push("Possible cardiac — chest pain reported");
-  if (/breathless|breath|सांस/.test(allText)) redFlags.push("Breathlessness — urgent review needed");
-  if (/blood|खून|bleeding|ਖੂਨ/.test(allText)) redFlags.push("Bleeding reported — assess urgency");
-  if (/unconscious|seizure|बेहोश/.test(allText)) redFlags.push("Altered consciousness — emergency triage");
+  if (/chest pain|سینہ درد|ਛਾਤੀ ਦਰਦ|흉통|सीने में दर्द|বুক ব্যথা|மார்பு வலி|ఛాతీ నొప్పి|छातीत दुखणे|છાતી દર્દ|ಎದೆ ನೋವು|നെഞ്ച് വേദന/.test(allText))
+    redFlags.push("🚨 EMERGENCY: Chest pain — possible cardiac event");
+  if (/stroke|facial droop|paralysis|लकवा|পক্ষাঘাত|चेहरा टेढ़ा|slurred speech|sudden headache/.test(allText))
+    redFlags.push("🚨 EMERGENCY: Stroke symptoms — immediate triage");
+  if (/breathless|breath|dyspn[oe]a|सांस|শ্বাসকষ্ট|மூச்சு|శ్వాస/.test(allText))
+    redFlags.push("⚠️ URGENT: Breathing difficulty — assess urgently");
+  if (/blood|खून|bleeding|রক্ত|இரத்தம்|రక్తం/.test(allText))
+    redFlags.push("⚠️ Bleeding reported — assess volume and urgency");
+  if (/unconscious|seizure|convulsion|बेहोश|অচেতন|மயக்கம்|మూర్ఛ|بے ہوش/.test(allText))
+    redFlags.push("🚨 EMERGENCY: Altered consciousness — immediate triage");
+  if (/high fever|104|105|तेज़ बुखार|উচ্চ জ্বর|تیز بخار/.test(allText))
+    redFlags.push("⚠️ High fever — assess for infection");
+  if (/suicid|self.harm|आत्महत्या/.test(allText))
+    redFlags.push("🚨 EMERGENCY: Self-harm risk — psychiatric consultation");
 
-  const ayushHasData = [prakriti, vikriti, agni, koshtha, ahara, nidana, samprapti]
+  const ayushHasData = [prakriti, vikriti, agni, koshtha, ahara, nidana, samprapti, sara, samhanana, satmya, pramana, sattva, aharaShakti, vyayamaShakti, vaya]
     .some((v) => v !== "Not reported");
 
   return {
@@ -192,7 +249,7 @@ function buildSummaryFromMessages(messages: ChatMessage[]): StructuredSummary {
     suggestedICD10: "",
     redFlags,
     ayushNote: ayushHasData
-      ? `Prakriti: ${prakriti}. Vikriti: ${vikriti}. Agni: ${agni}. Koshtha: ${koshtha}. Ahara-Vihara: ${ahara}. Nidana: ${nidana}. Samprapti: ${samprapti}.`
+      ? `Prakriti: ${prakriti}. Vikriti: ${vikriti}. Agni: ${agni}. Koshtha: ${koshtha}. Ahara-Vihara: ${ahara}. Nidana: ${nidana}. Samprapti: ${samprapti}. Sara: ${sara}. Samhanana: ${samhanana}. Satmya: ${satmya}. Pramana: ${pramana}. Sattva: ${sattva}. Ahara Shakti: ${aharaShakti}. Vyayama Shakti: ${vyayamaShakti}. Vaya: ${vaya}.`
       : "",
     ...(ayushHasData ? {
       prakriti,
@@ -202,6 +259,9 @@ function buildSummaryFromMessages(messages: ChatMessage[]): StructuredSummary {
       aharaVihara: ahara,
       nidana,
       samprapti,
+      sara,
+      samhanana,
+      satmya,
     } : {}),
   };
 }
@@ -222,6 +282,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["गर्म खाना", "तीखा खाना", "देर से सोना"],
     ayush_nidana: ["तनाव", "ठंड लगना", "बासी खाना"],
     ayush_samprapti: ["खाने के बाद", "सुबह", "रात को"],
+    ayush_sara: ["चमकदार", "मध्यम", "कमज़ोर"],
+    ayush_samhanana: ["मज़बूत", "मध्यम", "कमज़ोर"],
+    ayush_satmya: ["सब सहन", "कुछ असहन", "बहुत संवेदनशील"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   en: {
     chief_complaint: ["Fever", "Pain", "Vomiting", "Breathing difficulty", "Dizziness", "Weakness", "Cough", "Stomach pain"],
@@ -238,6 +306,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["Hot food", "Spicy food", "Late sleep"],
     ayush_nidana: ["Stress", "Cold exposure", "Stale food"],
     ayush_samprapti: ["After eating", "Morning", "Night"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   bn: {
     chief_complaint: ["জ্বর", "ব্যথা", "বমি", "শ্বাসকষ্ট", "মাথা ঘোরা", "দুর্বলতা", "কাশি", "পেট ব্যথা"],
@@ -254,6 +330,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["গরম খাবার", "ঝাল খাবার", "দেরিতে ঘুমানো"],
     ayush_nidana: ["মানসিক চাপ", "ঠান্ডা লাগা", "বাসি খাবার"],
     ayush_samprapti: ["খাওয়ার পরে", "সকালে", "রাতে"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   ta: {
     chief_complaint: ["காய்ச்சல்", "வலி", "வாந்தி", "மூச்சுத்திணறல்", "தலைசுற்றல்", "சோர்வு", "இருமல்", "வயிற்றுவலி"],
@@ -270,6 +354,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["சூடான உணவு", "காரமான உணவு", "தாமதமாக தூக்கம்"],
     ayush_nidana: ["மன அழுத்தம்", "குளிரில் இருத்தல்", "கெட்ட உணவு"],
     ayush_samprapti: ["சாப்பிட்ட பிறகு", "காலையில்", "இரவில்"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   te: {
     chief_complaint: ["జ్వరం", "నొప్పి", "వాంతులు", "శ్వాస ఇబ్బంది", "తల తిరగడం", "బలహీనత", "దగ్గు", "పొట్ట నొప్పి"],
@@ -286,6 +378,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["వేడి ఆహారం", "కారంగా", "ఆలస్యంగా నిద్ర"],
     ayush_nidana: ["ఒత్తిడి", "చలి", "పాత ఆహారం"],
     ayush_samprapti: ["తిన్న తర్వాత", "ఉదయం", "రాత్రి"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   mr: {
     chief_complaint: ["ताप", "दुखणे", "उलटी", "श्वास घेणे कठीण", "चक्कर", "अशक्तपणा", "खोकला", "पोटदुखी"],
@@ -302,6 +402,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["गरम अन्न", "मसालेदार", "उशिरा झोप"],
     ayush_nidana: ["ताण", "थंडी", "शिळे अन्न"],
     ayush_samprapti: ["जेवणानंतर", "सकाळी", "रात्री"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   gu: {
     chief_complaint: ["તાવ", "દર્દ", "ઉલ્ટી", "શ્વાસ લેવામાં તકલીફ", "ચક્કર", "નબળાઈ", "ઉધરસ", "પેટ દર્દ"],
@@ -318,6 +426,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["ગરમ ખોરાક", "મસાલેદાર", "મોડે સૂવું"],
     ayush_nidana: ["તણાવ", "ઠંડી", "વાસી ખોરાક"],
     ayush_samprapti: ["ખાધા પછી", "સવારે", "રાત્રે"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   kn: {
     chief_complaint: ["ಜ್ವರ", "ನೋವು", "ವಾಂತಿ", "ಉಸಿರಾಟ ತೊಂದರೆ", "ತಲೆ ತಿರುಗುವಿಕೆ", "ದೌರ್ಬಲ್ಯ", "ಕೆಮ್ಮು", "ಹೊಟ್ಟೆ ನೋವು"],
@@ -334,6 +450,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["ಬಿಸಿ ಆಹಾರ", "ಖಾರ", "ತಡ ನಿದ್ದೆ"],
     ayush_nidana: ["ಒತ್ತಡ", "ಚಳಿ", "ಹಳಸಿದ ಆಹಾರ"],
     ayush_samprapti: ["ತಿಂದ ನಂತರ", "ಬೆಳಗ್ಗೆ", "ರಾತ್ರಿ"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   ml: {
     chief_complaint: ["പനി", "വേദന", "ഓക്കാനം", "ശ്വാസ ബുദ്ധിമുട്ട്", "തലകറക്കം", "ക്ഷീണം", "ചുമ", "വയറ്റ് വേദന"],
@@ -350,6 +474,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["ചൂടുള്ള ഭക്ഷണം", "എരിവ്", "വൈകി ഉറങ്ങൽ"],
     ayush_nidana: ["സമ്മർദ്ദം", "തണുപ്പ്", "കേടായ ഭക്ഷണം"],
     ayush_samprapti: ["ഭക്ഷണ ശേഷം", "രാവിലെ", "രാത്രി"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   pa: {
     chief_complaint: ["ਬੁਖਾਰ", "ਦਰਦ", "ਉਲਟੀ", "ਸਾਹ ਦੀ ਤਕਲੀਫ਼", "ਚੱਕਰ", "ਕਮਜ਼ੋਰੀ", "ਖਾਂਸੀ", "ਪੇਟ ਦਰਦ"],
@@ -366,6 +498,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["ਗਰਮ ਖਾਣਾ", "ਮਸਾਲੇਦਾਰ", "ਦੇਰ ਨਾਲ ਸੌਣਾ"],
     ayush_nidana: ["ਤਣਾਅ", "ਠੰਡ", "ਬਾਸੀ ਖਾਣਾ"],
     ayush_samprapti: ["ਖਾਣੇ ਤੋਂ ਬਾਅਦ", "ਸਵੇਰੇ", "ਰਾਤ ਨੂੰ"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
   ur: {
     chief_complaint: ["بخار", "درد", "قے", "سانس لینے میں دشواری", "چکر", "کمزوری", "کھانسی", "پیٹ درد"],
@@ -382,6 +522,14 @@ const TOUCH_OPTIONS_L10N: Record<string, Partial<Record<Stage, string[]>>> = {
     ayush_ahara_vihara: ["گرم کھانا", "مسالے دار", "دیر سے سونا"],
     ayush_nidana: ["تناؤ", "ٹھنڈ", "باسی کھانا"],
     ayush_samprapti: ["کھانے کے بعد", "صبح", "رات"],
+    ayush_sara: ["Lustrous", "Moderate", "Dull/Weak"],
+    ayush_samhanana: ["Strong", "Moderate", "Weak"],
+    ayush_satmya: ["Tolerant", "Partial", "Sensitive"],
+    ayush_pramana: ["Tall", "Medium", "Short"],
+    ayush_sattva: ["Calm", "Irritable", "Anxious"],
+    ayush_ahara_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vyayama_shakti: ["Good", "Moderate", "Poor"],
+    ayush_vaya: ["Young", "Normal", "Old"],
   },
 };
 
@@ -402,8 +550,8 @@ export default function HistoryPage() {
   const [voiceError, setVoiceError] = useState("");
   const hasAskedFirst = useRef(false);
 
-  // Always use combined mode (allopathic + AYUSH stages for everyone)
-  const STAGES = COMBINED_STAGES;
+  // Use mode-aware stages — General OPD vs AYUSH OPD
+  const STAGES = interviewMode === "ayush" ? AYUSH_ONLY_STAGES : ALLOPATHIC_STAGES;
   const stageIndex = STAGES.indexOf(stage);
   const progress = Math.round(((stageIndex + 1) / (STAGES.length + 1)) * 80) + 5;
 
@@ -417,7 +565,7 @@ export default function HistoryPage() {
     if (!hasAskedFirst.current) {
       hasAskedFirst.current = true;
       setAiLoading(true);
-      fetch("/api/history/chat", {
+      resilientFetch("/api/history/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lang: savedLang, messages: [], stage: "chief_complaint", mode: savedMode }),
@@ -470,7 +618,7 @@ export default function HistoryPage() {
     async (forStage: Stage, history: ChatMessage[]) => {
       setAiLoading(true);
       try {
-        const res = await fetch("/api/history/chat", {
+        const res = await resilientFetch("/api/history/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ lang, messages: history, stage: forStage, mode: interviewMode }),
@@ -501,6 +649,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "आप क्या खाते हैं?",
             ayush_nidana: "तकलीफ से पहले क्या बदला?",
             ayush_samprapti: "तकलीफ कब बढ़ती है?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
           en: {
@@ -518,6 +674,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "What do you usually eat?",
             ayush_nidana: "What changed before this problem?",
             ayush_samprapti: "When does it worsen?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
           ta: {
@@ -535,6 +699,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "என்ன சாப்பிடுவீர்கள்?",
             ayush_nidana: "என்ன மாற்றம் ஏற்பட்டது?",
             ayush_samprapti: "எப்போது அதிகரிக்கிறது?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
           te: {
@@ -552,6 +724,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "ఏమి తింటారు?",
             ayush_nidana: "ఏమి మారింది?",
             ayush_samprapti: "ఎప్పుడు పెరుగుతుంది?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
           bn: {
@@ -569,6 +749,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "কী খান সাধারণত?",
             ayush_nidana: "কী পরিবর্তন হয়েছিল?",
             ayush_samprapti: "কখন বাড়ে?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
           mr: {
@@ -586,6 +774,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "काय खाता सहसा?",
             ayush_nidana: "काय बदलले?",
             ayush_samprapti: "केव्हा वाढतो त्रास?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
           gu: {
@@ -603,6 +799,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "ખોરાક?",
             ayush_nidana: "પહેલા શું બદલ્યું?",
             ayush_samprapti: "ક્યારે વધે?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
           kn: {
@@ -620,6 +824,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "ಆಹಾರ?",
             ayush_nidana: "ಏನು ಬದಲಾಯಿತು?",
             ayush_samprapti: "ಯಾವಾಗ ಹೆಚ್ಚಾಗುತ್ತದೆ?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
           ml: {
@@ -637,6 +849,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "ഭക്ഷണം?",
             ayush_nidana: "മാറ്റം?",
             ayush_samprapti: "എപ്പോൾ?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
           pa: {
@@ -654,6 +874,14 @@ export default function HistoryPage() {
             ayush_ahara_vihara: "ਖਾਣਾ?",
             ayush_nidana: "ਕੀ ਬਦਲਿਆ?",
             ayush_samprapti: "ਕਦੋਂ ਵਧਦਾ?",
+            ayush_sara: "Skin/hair/nail quality?",
+            ayush_samhanana: "Body build?",
+            ayush_satmya: "Food/climate tolerance?",
+            ayush_pramana: "Body proportion?",
+            ayush_sattva: "Mental state?",
+            ayush_ahara_shakti: "Digestive capacity?",
+            ayush_vyayama_shakti: "Exercise tolerance?",
+            ayush_vaya: "Age-related feeling?",
             summary: "",
           },
         };
@@ -689,7 +917,7 @@ export default function HistoryPage() {
       // Fetch structured summary
       setAiLoading(true);
       try {
-        const res = await fetch("/api/history/chat", {
+        const res = await resilientFetch("/api/history/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

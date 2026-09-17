@@ -48,8 +48,16 @@ export interface ExtractedDoc {
   confidence: "high" | "medium" | "low";
 }
 
+const COMMON_OCR_INSTRUCTIONS = `
+The document may be rotated, skewed, or photographed at an angle. Correct for orientation before reading.
+The document may contain text in Hindi, English, or regional Indian languages. Extract all text regardless of language.
+This document may be handwritten. Try multiple reading passes. Sound out abbreviated words. Common Indian prescription abbreviations: BD=twice daily, TDS=thrice daily, OD=once daily, SOS=as needed, HS=at bedtime, AC=before food, PC=after food, Inj=Injection, Tab=Tablet, Cap=Capsule, Syr=Syrup, Oint=Ointment.
+`;
+
 const DOC_PROMPTS: Record<DocType, string> = {
   prescription: `Extract ALL clinical and medication information from this medical prescription (printed or handwritten).
+${COMMON_OCR_INSTRUCTIONS}
+Common Indian drug names include Paracetamol, Amoxicillin, Azithromycin, Metformin, Amlodipine, Omeprazole, Pantoprazole, Crocin, Dolo, Combiflam, Augmentin. Verify extracted drug names against common medications.
 Even if the document is partially blurred or handwritten, transcribe everything readable.
 Return ONLY valid JSON with this exact schema:
 {
@@ -66,6 +74,8 @@ Return ONLY valid JSON with this exact schema:
 }`,
 
   lab_report: `Extract ALL laboratory investigations, blood tests, pathology metrics from this lab report.
+${COMMON_OCR_INSTRUCTIONS}
+For each lab value, determine if it's High (H), Low (L), or Normal (N) by comparing with the reference range. If reference range is not on the document, use standard medical reference ranges.
 Even if the document is scanned, photographed, or slightly blurred, identify the test names, observed values, units, reference intervals, and whether it is High (H), Low (L), or Normal (N).
 Return ONLY valid JSON with this exact schema:
 {
@@ -85,6 +95,7 @@ Return ONLY valid JSON with this exact schema:
 }`,
 
   discharge_summary: `Extract ALL clinical information from this hospital discharge summary.
+${COMMON_OCR_INSTRUCTIONS}
 Return ONLY valid JSON with this exact schema:
 {
   "docType": "discharge_summary",
@@ -100,6 +111,7 @@ Return ONLY valid JSON with this exact schema:
 }`,
 
   xray_report: `Extract radiological impression and diagnostic findings from this radiology/X-ray/CT/MRI report.
+${COMMON_OCR_INSTRUCTIONS}
 Return ONLY valid JSON with this exact schema:
 {
   "docType": "xray_report",
@@ -115,6 +127,7 @@ Return ONLY valid JSON with this exact schema:
 }`,
 
   other: `Extract any clinical or diagnostic information from this medical document.
+${COMMON_OCR_INSTRUCTIONS}
 Return ONLY valid JSON with this exact schema:
 {
   "docType": "other",
@@ -129,6 +142,14 @@ Return ONLY valid JSON with this exact schema:
   "confidence": "high|medium|low"
 }`,
 };
+
+// Helper function to fix common OCR errors in dosages (e.g. "5OOmg" -> "500mg")
+function fixOcrDosage(dose: string): string {
+  if (!dose) return dose;
+  return dose
+    .replace(/(\\d)[Oo]+/g, (match) => match.replace(/[Oo]/g, "0"))
+    .replace(/^[Oo]+(\\d)/, (match) => match.replace(/[Oo]/g, "0"));
+}
 
 // ── Resilient JSON parser ─────────────────────────────────────────
 function parseModelJson(raw: string): any {
@@ -248,7 +269,7 @@ export async function POST(req: NextRequest) {
     console.log("[scan/extract] Raw response length:", raw.length);
 
     try {
-      const extracted: ExtractedDoc = parseModelJson(raw);
+      let extracted: ExtractedDoc = parseModelJson(raw);
       // Ensure required structure fields exist
       extracted.docType = extracted.docType || docType;
       extracted.medications = Array.isArray(extracted.medications) ? extracted.medications : [];
@@ -256,6 +277,62 @@ export async function POST(req: NextRequest) {
       extracted.diagnoses = Array.isArray(extracted.diagnoses) ? extracted.diagnoses : [];
       extracted.vitals = extracted.vitals || {};
       extracted.confidence = extracted.confidence || "medium";
+
+      // ── Multi-pass extraction for low confidence ──
+      if (extracted.confidence === "low" && extracted.medications.length === 0 && extracted.labValues.length === 0) {
+        console.log("[scan/extract] Confidence is low, attempting second pass with enhanced prompt.");
+        const retryPrompt = `The previous extraction had low confidence. Please re-examine this document more carefully. Focus on:\n1. Any medication names (even partially readable)\n2. Any numerical values that could be lab results\n3. Any dates\n4. Doctor or hospital names\n${prompt}`;
+        
+        const retryParts = [
+          {
+            inlineData: {
+              mimeType: cleanMime,
+              data: imageBase64,
+            },
+          },
+          {
+            text: `${retryPrompt}\nIMPORTANT: Respond with the JSON object ONLY. No markdown conversational commentary before or after.`,
+          },
+        ];
+
+        let retryResponse: any = null;
+        for (const model of modelsToTry) {
+          try {
+            retryResponse = await ai.models.generateContent({
+              model,
+              contents: [{ role: "user", parts: retryParts }],
+            });
+            if (retryResponse?.text) break;
+          } catch (err: any) {
+            console.warn(`[scan/extract] Retry Model ${model} failed, trying next...`);
+          }
+        }
+        
+        if (retryResponse && retryResponse.text) {
+          try {
+            const retryExtracted: ExtractedDoc = parseModelJson(retryResponse.text);
+            retryExtracted.docType = retryExtracted.docType || docType;
+            retryExtracted.medications = Array.isArray(retryExtracted.medications) ? retryExtracted.medications : [];
+            retryExtracted.labValues = Array.isArray(retryExtracted.labValues) ? retryExtracted.labValues : [];
+            retryExtracted.diagnoses = Array.isArray(retryExtracted.diagnoses) ? retryExtracted.diagnoses : [];
+            retryExtracted.vitals = retryExtracted.vitals || {};
+            retryExtracted.confidence = retryExtracted.confidence || "medium";
+            
+            // If the retry found something, use it
+            if (retryExtracted.medications.length > 0 || retryExtracted.labValues.length > 0 || retryExtracted.confidence !== "low") {
+                extracted = retryExtracted;
+            }
+          } catch (retryError) {
+             console.warn("[scan/extract] Retry JSON parse failed, sticking to first extraction.");
+          }
+        }
+      }
+
+      // ── Apply Dosage Validation ──
+      extracted.medications = extracted.medications.map(med => ({
+        ...med,
+        dose: fixOcrDosage(med.dose)
+      }));
 
       return NextResponse.json({ success: true, data: extracted });
     } catch (parseError) {

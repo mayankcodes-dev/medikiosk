@@ -104,9 +104,7 @@ export default function ConsentPage() {
   function handleProceed() {
     stop(); // stop audio when proceeding
     sessionStorage.setItem("mk_consent", JSON.stringify(checked));
-    // Always use combined mode (allopathic + AYUSH stages merged)
-    sessionStorage.setItem("mk_mode", "combined");
-    router.push("/history");
+    router.push("/opd-select");
   }
 
   function handlePlayAudio() {
@@ -124,8 +122,8 @@ export default function ConsentPage() {
         title={t(lang, "yourConsent")}
         subtitle="Your Consent"
         onBack={() => router.push("/login")}
-        progress={20}
-        stepLabel="2 / 6"
+        progress={15}
+        stepLabel="2 / 7"
         rightSlot={
           <button
             onClick={handlePlayAudio}

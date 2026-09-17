@@ -19,6 +19,11 @@ import type { KnowledgeDomain } from "@/lib/rag/knowledge-base";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
+// ── Grok (xAI) client — OpenAI-compatible API ────────────────────────────────
+const GROK_API_KEY = process.env.GROK_API_KEY;
+const GROK_API_URL = process.env.GROK_API_URL ?? "https://api.x.ai/v1";
+const GROK_MODEL = process.env.GROK_MODEL ?? "grok-3-mini-fast";
+
 const LANG_NAMES: Record<string, string> = {
   hi: "Hindi",   en: "English",    bn: "Bengali",   ta: "Tamil",
   te: "Telugu",  mr: "Marathi",    gu: "Gujarati",  kn: "Kannada",
@@ -45,6 +50,14 @@ const AYUSH_STAGES = [
   "ayush_ahara_vihara",  // Diet and lifestyle
   "ayush_nidana",        // Causative factors
   "ayush_samprapti",     // Pathogenesis
+  "ayush_sara",          // Tissue essence/quality
+  "ayush_samhanana",     // Body build/compactness
+  "ayush_satmya",        // Adaptability/tolerance
+  "ayush_pramana",       // Body measurement/proportion
+  "ayush_sattva",        // Mental strength/psyche
+  "ayush_ahara_shakti",  // Digestive capacity
+  "ayush_vyayama_shakti",// Exercise tolerance
+  "ayush_vaya",          // Age-based constitution
   "summary",
 ] as const;
 
@@ -102,6 +115,14 @@ export interface StructuredSummary {
   aharaVihara?: string;
   nidana?: string;
   samprapti?: string;
+  sara?: string;           // Tissue quality/essence
+  samhanana?: string;      // Body build/compactness
+  satmya?: string;         // Adaptability/tolerance
+  pramana?: string;        // Body measurement
+  sattva?: string;         // Mental strength
+  aharaShakti?: string;    // Digestive capacity
+  vyayamaShakti?: string;  // Exercise tolerance
+  vaya?: string;           // Age constitution
 }
 
 // ── Stage sequencing ─────────────────────────────────────────────────────────
@@ -255,10 +276,71 @@ JSON Schema:
 }`;
 }
 
-// ── Gemini call helper ────────────────────────────────────────────────────────
+// ── Grok (xAI) call helper — for conversation question generation ─────────────
 
-async function callGemini(systemPrompt: string, userPrompt: string): Promise<string | null> {
-  // gemini-2.0-flash deprecated (404). Use 2.5-flash primary, 1.5-flash as fallback.
+async function callGrok(systemPrompt: string, userPrompt: string): Promise<string | null> {
+  if (!GROK_API_KEY) {
+    // Fallback to Gemini if Grok key not configured
+    return callGeminiForSummary(systemPrompt + "\n\n" + userPrompt);
+  }
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(`${GROK_API_URL}/chat/completions`, {
+        method: "POST",
+        signal: AbortSignal.timeout(12000),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${GROK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: GROK_MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 300,
+        }),
+      });
+
+      if (response.status === 429) {
+        // Rate limited — wait then retry
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 3000));
+          continue;
+        }
+        break;
+      }
+
+      if (!response.ok) {
+        console.warn(`[history/chat] Grok API error: ${response.status}`);
+        break;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await response.json();
+      const text = data?.choices?.[0]?.message?.content?.trim();
+      if (text) return text;
+      break;
+    } catch (err) {
+      console.warn("[history/chat] Grok call failed:", err instanceof Error ? err.message : err);
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      break;
+    }
+  }
+
+  // Fallback to Gemini if Grok fails
+  console.warn("[history/chat] Grok failed, falling back to Gemini for question generation");
+  return callGeminiLegacy(systemPrompt, userPrompt);
+}
+
+// ── Gemini call helper — kept as fallback for questions + primary for summary ─
+
+async function callGeminiLegacy(systemPrompt: string, userPrompt: string): Promise<string | null> {
   const modelsToTry = [
     process.env.GEMINI_MODEL,
     "gemini-2.5-flash",
@@ -269,33 +351,38 @@ async function callGemini(systemPrompt: string, userPrompt: string): Promise<str
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const response: any = await ai.models.generateContent({
-          model,
-          contents: [
-            { role: "user", parts: [{ text: systemPrompt }] },
-            { role: "model", parts: [{ text: "Understood. I will ask one contextual question at a time in the patient's language." }] },
-            { role: "user", parts: [{ text: userPrompt }] },
-          ],
-        });
+        const timeoutMs = 15000;
+        const response: any = await Promise.race([
+          ai.models.generateContent({
+            model,
+            contents: [
+              { role: "user", parts: [{ text: systemPrompt }] },
+              { role: "model", parts: [{ text: "Understood. I will ask one contextual question at a time in the patient's language." }] },
+              { role: "user", parts: [{ text: userPrompt }] },
+            ],
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("GEMINI_TIMEOUT")), timeoutMs)),
+        ]);
         if (response?.text) return response.text.trim();
-        break; // null response but not an error — try next model
+        break;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
-          // Rate limited — wait 6 seconds then retry once
           if (attempt === 0) {
             await new Promise((r) => setTimeout(r, 6000));
             continue;
           }
-          // Still failing — try next model
         }
-        // Other error (404 deprecated, etc.) — try next model immediately
         break;
       }
     }
   }
   return null;
 }
+
+// Alias for summary generation — always uses Gemini
+const callGeminiForSummary = (prompt: string) => callGeminiLegacy("", prompt);
+
 
 // ── Fallback questions ────────────────────────────────────────────────────────
 
@@ -483,6 +570,90 @@ const FALLBACK_QUESTIONS: Partial<Record<Stage, Record<string, string>>> = {
     pa: "ਇਹ ਤਕਲੀਫ਼ ਕਦੋਂ ਵਧਦੀ ਹੈ — ਖਾਣ ਤੋਂ ਬਾਅਦ, ਸਵੇਰੇ, ਰਾਤ ਨੂੰ, ਜਾਂ ਠੰਡ ਵਿੱਚ?",
     ur: "یہ تکلیف کب بڑھتی ہے — کھانے کے بعد، صبح، رات کو، یا سردی میں؟",
   },
+  ayush_sara: {
+    hi: "आपकी त्वचा, बाल, और नाखूनों की गुणवत्ता कैसी है — चमकदार, मध्यम, या कमज़ोर?",
+    en: "How is the quality of your skin, hair, and nails — lustrous, moderate, or dull/weak?",
+    bn: "আপনার ত্বক, চুল, নখের গুণ কেমন — উজ্জ্বল, মাঝারি, বা দুর্বল?",
+    ta: "உங்கள் தோல், முடி, நகங்களின் தரம் எப்படி — பளபளப்பு, நடுத்தரம், பலவீனம்?",
+    te: "మీ చర్మం, జుట్టు, గోళ్ల నాణ్యత ఎలా — మెరిసే, మధ్యస్థం, లేదా బలహీనం?",
+    mr: "तुमची त्वचा, केस, नखे कशी आहेत — चमकदार, मध्यम, किंवा कमकुवत?",
+    gu: "તમારી ત્વચા, વાળ, નખ કેવા — ચમકદાર, મધ્યમ, કે નબળા?",
+    kn: "ನಿಮ್ಮ ಚರ್ಮ, ಕೂದಲು, ಉಗುರುಗಳ ಗುಣಮಟ್ಟ — ಹೊಳೆಯುವ, ಸಾಧಾರಣ, ದುರ್ಬಲ?",
+    ml: "നിങ്ങളുടെ ചർമം, മുടി, നഖങ്ങൾ — തിളങ്ങുന്നത്, ഇടത്തരം, ദുർബലം?",
+    pa: "ਤੁਹਾਡੀ ਚਮੜੀ, ਵਾਲ਼, ਨਹੁੰ ਕਿਹੋ ਜਿਹੇ — ਚਮਕਦਾਰ, ਮੱਧਮ, ਜਾਂ ਕਮਜ਼ੋਰ?",
+    ur: "آپ کی جلد، بال، ناخن کی حالت — چمکدار، درمیانہ، یا کمزور؟",
+  },
+  ayush_samhanana: {
+    hi: "आपका शरीर कैसा बना हुआ है — मज़बूत/ठोस, मध्यम, या कमज़ोर/ढीला?",
+    en: "How would you describe your body build — compact/strong, moderate, or loose/weak?",
+    bn: "আপনার শরীরের গড়ন কেমন — শক্ত/মজবুত, মাঝারি, বা দুর্বল/শিথিল?",
+    ta: "உங்கள் உடல் அமைப்பு — பலமான, நடுத்தரம், அல்லது பலவீனம்?",
+    te: "మీ శరీర నిర్మాణం ఎలా — బలమైన, మధ్యస్థం, లేదా బలహీనం?",
+    mr: "तुमचे शरीर कसे बनले आहे — मजबूत, मध्यम, किंवा कमकुवत?",
+    gu: "તમારા શરીરની બાંધણી — મજબૂત, મધ્યમ, કે નબળી?",
+    kn: "ನಿಮ್ಮ ದೇಹ ರಚನೆ — ಬಲವಾದ, ಸಾಧಾರಣ, ಅಥವಾ ದುರ್ಬಲ?",
+    ml: "നിങ്ങളുടെ ശരീര ഘടന — ശക്തം, ഇടത്തരം, ദുർബലം?",
+    pa: "ਤੁਹਾਡੇ ਸਰੀਰ ਦੀ ਬਣਤਰ — ਮਜ਼ਬੂਤ, ਦਰਮਿਆਨੀ, ਜਾਂ ਕਮਜ਼ੋਰ?",
+    ur: "آپ کے جسم کی ساخت — مضبوط، درمیانہ، یا کمزور؟",
+  },
+  ayush_satmya: {
+    hi: "आप किस प्रकार का भोजन और मौसम आसानी से सहन कर लेते हैं? कोई विशेष असहनीयता?",
+    en: "What type of food and climate do you tolerate well? Any specific intolerances?",
+    bn: "কোন ধরণের খাবার ও আবহাওয়া সহ্য করতে পারেন? কোনো বিশেষ অসহিষ্ণুতা?",
+    ta: "எந்த வகை உணவு மற்றும் சீதோஷ்ணத்தை நீங்கள் தாங்குவீர்கள்? சகிப்பின்மை?",
+    te: "మీరు ఏ రకమైన ఆహారం మరియు వాతావరణాన్ని తట్టుకుంటారు? అసహనం ఏమైనా?",
+    mr: "तुम्हाला कोणत्या प्रकारचे अन्न व हवामान सोसते? काही विशेष असहिष्णुता?",
+    gu: "તમે કયા પ્રકારનો ખોરાક અને આબોહવા સહન કરો છો? કોઈ ખાસ અસહ્યતા?",
+    kn: "ಯಾವ ರೀತಿಯ ಆಹಾರ ಮತ್ತು ಹವಾಮಾನ ಸಹಿಸುತ್ತೀರಿ? ನಿರ್ದಿಷ್ಟ ಅಸಹನೆ?",
+    ml: "ഏതു തരം ഭക്ഷണവും കാലാവസ്ഥയും സഹിക്കും? പ്രത്യേക അസഹിഷ്ണുത?",
+    pa: "ਤੁਸੀਂ ਕਿਹੜੇ ਕਿਸਮ ਦਾ ਖਾਣਾ ਅਤੇ ਮੌਸਮ ਸਹਿ ਸਕਦੇ ਹੋ? ਕੋਈ ਖ਼ਾਸ ਅਸਹਿਣਸ਼ੀਲਤਾ?",
+    ur: "آپ کس قسم کا کھانا اور موسم برداشت کرتے ہیں؟ کوئی خاص عدم برداشت؟",
+  },
+  ayush_pramana: {
+    hi: "आपका शरीर अनुपात कैसा है — लंबा/पतला, मध्यम, या छोटा/भारी?",
+    en: "How is your body proportion — tall/thin, medium, or short/heavy?",
+    bn: "শরীরের অনুপাত — লম্বা/রোগা, মাঝারি, নাটখাটো?", ta: "உடல் விகிதம் — உயரம், நடுத்தரம், குட்டை?",
+    te: "శరీర నిష్పత్తి — పొడవు, మధ్యస్థం, పొట్టి?", mr: "शरीर प्रमाण — उंच, मध्यम, बुटके?",
+    gu: "શરીર પ્રમાણ — ઊંચા, મધ્યમ, ટૂંકા?", kn: "ದೇಹ ಅನುಪಾತ — ಎತ್ತರ, ಸಾಧಾರಣ, ಗಿಡ್ಡ?",
+    ml: "ശരീര അനുപാതം — ഉയരം, ഇടത്തരം, കുറിയ?", pa: "ਸਰੀਰ ਅਨੁਪਾਤ — ਲੰਬੇ, ਮੱਧਮ, ਛੋਟੇ?",
+    ur: "جسمانی تناسب — لمبا، درمیانہ، چھوٹا؟",
+  },
+  ayush_sattva: {
+    hi: "आपका मन कैसा रहता है — शांत/स्थिर, चिड़चिड़ा, या डरा हुआ/चिंतित?",
+    en: "How is your mental state usually — calm/stable, irritable, or anxious/fearful?",
+    bn: "মানসিক অবস্থা — শান্ত, খিটখিটে, ভীত?", ta: "மன நிலை — அமைதி, எரிச்சல், பயம்?",
+    te: "మానసిక స్థితి — ప్రశాంతం, చిరాకు, భయం?", mr: "मनःस्थिती — शांत, चिडचिड, भीती?",
+    gu: "માનસિક સ્થિતિ — શાંત, ચીડિયા, ડરપોક?", kn: "ಮನಸ್ಥಿತಿ — ಶಾಂತ, ಕಿರಿಕಿರಿ, ಭಯ?",
+    ml: "മനോനില — ശാന്തം, ദേഷ്യം, ഭയം?", pa: "ਮਾਨਸਿਕ ਹਾਲਤ — ਸ਼ਾਂਤ, ਚਿੜਚਿੜਾ, ਡਰਿਆ?",
+    ur: "ذہنی حالت — پرسکون، چڑچڑا، خوفزدہ؟",
+  },
+  ayush_ahara_shakti: {
+    hi: "आप कितना खाना पचा पाते हैं — अच्छा/भरपूर, मध्यम, या बहुत कम?",
+    en: "How much food can you digest comfortably — good/full meals, moderate, or very little?",
+    bn: "কতটা খাবার হজম করতে পারেন — ভালো, মাঝারি, কম?", ta: "எவ்வளவு சாப்பிட முடியும் — நன்றாக, நடுத்தரம், குறைவு?",
+    te: "ఎంత ఆహారం జీర్ణం చేయగలరు — బాగా, మధ్యస్థం, తక్కువ?", mr: "किती जेवण पचवता — चांगले, मध्यम, कमी?",
+    gu: "કેટલું ખાવાનું પચાવો — સારું, મધ્યમ, ઓછું?", kn: "ಎಷ್ಟು ಊಟ ಜೀರ್ಣ — ಚೆನ್ನಾಗಿ, ಸಾಧಾರಣ, ಕಡಿಮೆ?",
+    ml: "എത്ര ഭക്ഷണം ദഹിക്കും — നന്നായി, ഇടത്തരം, കുറവ്?", pa: "ਕਿੰਨਾ ਖਾਣਾ ਹਜ਼ਮ — ਵਧੀਆ, ਮੱਧਮ, ਘੱਟ?",
+    ur: "کتنا کھانا ہضم — اچھا، درمیانہ، کم؟",
+  },
+  ayush_vyayama_shakti: {
+    hi: "आप कितनी मेहनत या व्यायाम सहन कर सकते हैं — अच्छी, मध्यम, या बहुत कम?",
+    en: "How much physical exertion can you tolerate — good, moderate, or very little?",
+    bn: "কতটা পরিশ্রম সহ্য — ভালো, মাঝারি, কম?", ta: "எவ்வளவு உடற்பயிற்சி தாங்குவீர் — நன்றாக, நடுத்தரம், குறைவு?",
+    te: "ఎంత శ్రమ తట్టుకుంటారు — బాగా, మధ్యస్థం, తక్కువ?", mr: "किती कष्ट सहन — चांगले, मध्यम, कमी?",
+    gu: "કેટલી મહેનત સહન — સારી, મધ્યમ, ઓછી?", kn: "ಎಷ್ಟು ಶ್ರಮ ಸಹಿಸುತ್ತೀರಿ — ಚೆನ್ನಾಗಿ, ಸಾಧಾರಣ, ಕಡಿಮೆ?",
+    ml: "എത്ര അധ്വാനം സഹിക്കും — നന്നായി, ഇടത്തരം, കുറവ്?", pa: "ਕਿੰਨੀ ਮਿਹਨਤ ਸਹਿ — ਵਧੀਆ, ਮੱਧਮ, ਘੱਟ?",
+    ur: "کتنی محنت برداشت — اچھی، درمیانہ، کم؟",
+  },
+  ayush_vaya: {
+    hi: "आपकी उम्र के हिसाब से आप कैसा महसूस करते हैं — उम्र से जवान, ठीक-ठाक, या उम्र से बूढ़ा?",
+    en: "How do you feel relative to your age — younger than age, normal, or older than age?",
+    bn: "বয়সের তুলনায় কেমন — কম, স্বাভাবিক, বেশি?", ta: "வயதுக்கு ஏற்ப — இளமை, சரி, முதிர்வு?",
+    te: "వయస్సుకు తగ్గట్లు — యువకంగా, సాధారణం, వృద్ధంగా?", mr: "वयाच्या मानाने — तरुण, ठीक, वृद्ध?",
+    gu: "ઉંમર મુજબ — યુવા, ઠીક, વૃદ્ધ?", kn: "ವಯಸ್ಸಿಗೆ ಹೋಲಿಸಿ — ಯುವ, ಸರಿ, ವೃದ್ಧ?",
+    ml: "പ്രായത്തിന് അനുസരിച്ച് — ചെറുപ്പം, ശരി, വയസ്സ്?", pa: "ਉਮਰ ਮੁਤਾਬਕ — ਜਵਾਨ, ਠੀਕ, ਬੁੱਢਾ?",
+    ur: "عمر کے مطابق — جوان، ٹھیک، بوڑھا؟",
+  },
   summary: { hi: "", en: "", bn: "", ta: "", te: "", mr: "", gu: "", kn: "", ml: "", pa: "", ur: "" },
 };
 
@@ -571,7 +742,7 @@ export async function POST(req: NextRequest) {
           suggestedICD10: "R00-R99 — Symptoms and signs",
           redFlags: [],
           ayushNote: (mode === "ayush" || (mode as string) === "combined")
-            ? `Prakriti: ${byStage("ayush_prakriti")}. Vikriti: ${byStage("ayush_vikriti")}. Agni: ${byStage("ayush_agni")}. Koshtha: ${byStage("ayush_koshtha")}. Ahara-Vihara: ${byStage("ayush_ahara_vihara")}. Nidana: ${byStage("ayush_nidana")}. Samprapti: ${byStage("ayush_samprapti")}.`
+            ? `Prakriti: ${byStage("ayush_prakriti")}. Vikriti: ${byStage("ayush_vikriti")}. Agni: ${byStage("ayush_agni")}. Koshtha: ${byStage("ayush_koshtha")}. Ahara-Vihara: ${byStage("ayush_ahara_vihara")}. Nidana: ${byStage("ayush_nidana")}. Samprapti: ${byStage("ayush_samprapti")}. Sara: ${byStage("ayush_sara")}. Samhanana: ${byStage("ayush_samhanana")}. Satmya: ${byStage("ayush_satmya")}. Pramana: ${byStage("ayush_pramana")}. Sattva: ${byStage("ayush_sattva")}. Ahara Shakti: ${byStage("ayush_ahara_shakti")}. Vyayama Shakti: ${byStage("ayush_vyayama_shakti")}. Vaya: ${byStage("ayush_vaya")}.`
             : "Not applicable",
           ...((mode === "ayush" || (mode as string) === "combined") ? {
             prakriti: byStage("ayush_prakriti"),
@@ -581,6 +752,14 @@ export async function POST(req: NextRequest) {
             aharaVihara: byStage("ayush_ahara_vihara"),
             nidana: byStage("ayush_nidana"),
             samprapti: byStage("ayush_samprapti"),
+            sara: byStage("ayush_sara"),
+            samhanana: byStage("ayush_samhanana"),
+            satmya: byStage("ayush_satmya"),
+            pramana: byStage("ayush_pramana"),
+            sattva: byStage("ayush_sattva"),
+            aharaShakti: byStage("ayush_ahara_shakti"),
+            vyayamaShakti: byStage("ayush_vyayama_shakti"),
+            vaya: byStage("ayush_vaya"),
           } : {}),
         };
         return NextResponse.json({
@@ -660,16 +839,16 @@ NEVER respond in Hindi if the selected language is not Hindi.
 Reply with ONLY the question — no label, no prefix, no explanation.`;
 
 
-    const geminiResponse = await callGemini(systemPrompt, userPrompt);
+    const grokResponse = await callGrok(systemPrompt, userPrompt);
 
-    // ── Script validation: reject if Gemini returned Devanagari for a non-Devanagari language
+    // ── Script validation: reject if AI returned Devanagari for a non-Devanagari language
     const DEVANAGARI_LANGS = new Set(["hi", "mr", "ne", "sa"]);
-    const hasDevanagari = /[\u0900-\u097F]/.test(geminiResponse ?? "");
+    const hasDevanagari = /[\u0900-\u097F]/.test(grokResponse ?? "");
     const usesFallback = !DEVANAGARI_LANGS.has(lang) && hasDevanagari;
 
     const question = usesFallback
-      ? getFallbackQuestion(stage, lang)   // Gemini replied in Hindi — use deterministic fallback
-      : (geminiResponse ?? getFallbackQuestion(stage, lang));
+      ? getFallbackQuestion(stage, lang)   // AI replied in Hindi — use deterministic fallback
+      : (grokResponse ?? getFallbackQuestion(stage, lang));
 
     return NextResponse.json({
       question,
