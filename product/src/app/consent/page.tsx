@@ -90,7 +90,15 @@ export default function ConsentPage() {
   const { speak, stop, isSpeaking } = usePageSpeaker(lang);
 
   useEffect(() => {
-    setLang(sessionStorage.getItem("mk_lang") ?? "hi");
+    const savedLang = sessionStorage.getItem("mk_lang") ?? "hi";
+    setLang(savedLang);
+    // Auto-play audio instructions after lang is set
+    const t = setTimeout(() => {
+      const text = CONSENT_SPEECH[savedLang] ?? CONSENT_SPEECH["hi"];
+      speak(text);
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const requiredChecked = CONSENT_ITEMS.filter((i) => i.required).every(

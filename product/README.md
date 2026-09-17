@@ -15,7 +15,7 @@ npm run dev                   # http://localhost:3000
 | Variable | Purpose |
 |----------|---------|
 | `GEMINI_API_KEY` | Google Gemini — summary generation + Vision OCR |
-| `GROK_API_KEY` | xAI Grok — conversation engine |
+| `GROK_API_KEY` | xAI Groq — conversation engine |
 | `GROK_API_URL` | xAI endpoint (default: `https://api.x.ai/v1`) |
 | `DATABASE_URL` | Neon Postgres connection string |
 | `BHASHINI_API_KEY` | Bhashini ASR/TTS for Indian languages |
@@ -37,7 +37,7 @@ npx vercel        # Deploy to Vercel
 
 | Route | Method | Purpose |
 |-------|--------|---------|
-| `/api/history/chat` | POST | AI conversation engine (Grok → Gemini → offline) |
+| `/api/history/chat` | POST | AI conversation engine (Groq → Gemini → offline) |
 | `/api/scan/extract` | POST | Gemini Vision OCR for documents |
 | `/api/bhashini/asr` | POST | Speech-to-text (22 languages) |
 | `/api/bhashini/tts` | POST | Text-to-speech |

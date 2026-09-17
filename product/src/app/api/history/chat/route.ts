@@ -314,7 +314,7 @@ async function callGrok(systemPrompt: string, userPrompt: string): Promise<strin
       }
 
       if (!response.ok) {
-        console.warn(`[history/chat] Grok API error: ${response.status}`);
+        console.warn(`[history/chat] Groq API error: ${response.status}`);
         break;
       }
 
@@ -324,7 +324,7 @@ async function callGrok(systemPrompt: string, userPrompt: string): Promise<strin
       if (text) return text;
       break;
     } catch (err) {
-      console.warn("[history/chat] Grok call failed:", err instanceof Error ? err.message : err);
+      console.warn("[history/chat] Groq call failed:", err instanceof Error ? err.message : err);
       if (attempt === 0) {
         await new Promise((r) => setTimeout(r, 2000));
         continue;
@@ -334,7 +334,7 @@ async function callGrok(systemPrompt: string, userPrompt: string): Promise<strin
   }
 
   // Fallback to Gemini if Grok fails
-  console.warn("[history/chat] Grok failed, falling back to Gemini for question generation");
+  console.warn("[history/chat] Groq failed, falling back to Gemini for question generation");
   return callGeminiLegacy(systemPrompt, userPrompt);
 }
 
