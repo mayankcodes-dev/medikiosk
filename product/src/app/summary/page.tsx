@@ -192,11 +192,14 @@ export default function SummaryPage() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        // Patient actually responded at least once?
+        const hasPatientMessages = Array.isArray(parsed.messages) &&
+          parsed.messages.some((m: { role: string }) => m.role === "patient");
         if (parsed.summary?.chiefComplaint) {
           setSummary(parsed.summary);
           setIsMock(false);
-        } else if (Array.isArray(parsed.messages) && parsed.messages.length > 0) {
-          // Gemini didn't return summary — build it from raw messages
+        } else if (hasPatientMessages) {
+          // Gemini didn't return summary — build it from raw patient answers
           const built = buildSummaryFromSessionMessages(parsed.messages);
           setSummary(built);
           setIsMock(false);

@@ -607,16 +607,38 @@ export default function HistoryPage() {
 
   // ── Speak question when it changes ───────────────────────────
   useEffect(() => {
-    if (currentQuestion && voice.isSupported) {
-      voice.speak(currentQuestion);
-    }
+    if (!currentQuestion || !voice.isSupported) return;
+    const t = setTimeout(() => { voice.speak(currentQuestion); }, 300);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQuestion]);
 
   // ── API call to Gemini ───────────────────────────────────────
   const fetchNextQuestion = useCallback(
     async (forStage: Stage, history: ChatMessage[]) => {
+      // INSTANT RESPONSE: Show offline fallback question immediately (zero wait)
+      const INSTANT: Record<string, Record<Stage, string>> = {
+        hi: { chief_complaint:"आज आपको मुख्य रूप से क्या तकलीफ है?",hpi:"यह तकलीफ कब से है?",past_history:"क्या पहले कोई बड़ी बीमारी हुई है?",drug_allergy:"कोई दवाई या एलर्जी?",family_history:"परिवार में कोई बड़ी बीमारी?",personal_history:"आप क्या काम करते हैं?",review_of_systems:"और किसी अंग में तकलीफ?",ayush_prakriti:"आपकी त्वचा कैसी है?",ayush_vikriti:"अभी कैसा महसूस कर रहे हैं?",ayush_agni:"भूख कैसी है?",ayush_koshtha:"पेट साफ कैसे होता है?",ayush_ahara_vihara:"आप क्या खाते हैं?",ayush_nidana:"तकलीफ से पहले क्या बदला?",ayush_samprapti:"तकलीफ कब बढ़ती है?",ayush_sara:"त्वचा बाल नाखून की स्थिति?",ayush_samhanana:"शरीर का गठन?",ayush_satmya:"कौन सा खाना सूट करता है?",ayush_pramana:"लंबाई और वजन?",ayush_sattva:"मानसिक स्थिति?",ayush_ahara_shakti:"खाना पचाने की क्षमता?",ayush_vyayama_shakti:"व्यायाम की क्षमता?",ayush_vaya:"उम्र के हिसाब से कैसा महसूस?",summary:"" },
+        en: { chief_complaint:"What is your main problem today?",hpi:"When did it start and how does it feel?",past_history:"Any past major illness or surgery?",drug_allergy:"Any medicines or allergies?",family_history:"Family history of major diseases?",personal_history:"Your occupation?",review_of_systems:"Any other body part issues?",ayush_prakriti:"How is your skin usually?",ayush_vikriti:"How do you feel right now?",ayush_agni:"How is your appetite?",ayush_koshtha:"How is your bowel movement?",ayush_ahara_vihara:"What do you usually eat?",ayush_nidana:"What changed before this problem?",ayush_samprapti:"When does it worsen?",ayush_sara:"Skin hair nail quality?",ayush_samhanana:"Body build?",ayush_satmya:"What foods suit you?",ayush_pramana:"Height and weight?",ayush_sattva:"Mental state?",ayush_ahara_shakti:"Digestion capacity?",ayush_vyayama_shakti:"Exercise tolerance?",ayush_vaya:"How do you feel for your age?",summary:"" },
+        ta: { chief_complaint:"இன்று உங்கள் முக்கிய பிரச்சினை என்ன?",hpi:"இது எப்போது தொடங்கியது?",past_history:"முன்பு பெரிய நோய் வந்ததுண்டா?",drug_allergy:"மருந்து அல்லது ஒவ்வாமை?",family_history:"குடும்பத்தில் நோய் வரலாறு?",personal_history:"தொழில் என்ன?",review_of_systems:"வேறு உறுப்புகளில் பிரச்சனை?",ayush_prakriti:"தோல் எப்படி?",ayush_vikriti:"இப்போது எப்படி?",ayush_agni:"பசி எப்படி?",ayush_koshtha:"மலம் எப்படி?",ayush_ahara_vihara:"என்ன சாப்பிடுவீர்கள்?",ayush_nidana:"என்ன மாற்றம்?",ayush_samprapti:"எப்போது அதிகரிக்கிறது?",ayush_sara:"தோல் முடி நகம்?",ayush_samhanana:"உடல் அமைப்பு?",ayush_satmya:"சகிப்புத்தன்மை?",ayush_pramana:"உயரம் எடை?",ayush_sattva:"மன நிலை?",ayush_ahara_shakti:"செரிமான திறன்?",ayush_vyayama_shakti:"உடற்பயிற்சி?",ayush_vaya:"வயதுக்கு ஏற்ப?",summary:"" },
+        te: { chief_complaint:"ఈరోజు మీ ప్రధాన సమస్య?",hpi:"ఇది ఎప్పుడు మొదలైంది?",past_history:"గతంలో పెద్ద వ్యాధి?",drug_allergy:"మందులు లేదా అలర్జీ?",family_history:"కుటుంబ వ్యాధి చరిత్ర?",personal_history:"మీ వృత్తి?",review_of_systems:"ఇతర భాగాల్లో సమస్య?",ayush_prakriti:"చర్మం ఎలా?",ayush_vikriti:"ఇప్పుడు ఎలా?",ayush_agni:"ఆకలి?",ayush_koshtha:"మలవిసర్జన?",ayush_ahara_vihara:"ఏమి తింటారు?",ayush_nidana:"ఏమి మారింది?",ayush_samprapti:"ఎప్పుడు పెరుగుతుంది?",ayush_sara:"చర్మం జుట్టు గోళ్ళు?",ayush_samhanana:"శరీర నిర్మాణం?",ayush_satmya:"సహనం?",ayush_pramana:"ఎత్తు బరువు?",ayush_sattva:"మనో స్థితి?",ayush_ahara_shakti:"జీర్ణ సామర్థ్యం?",ayush_vyayama_shakti:"వ్యాయామ సహనం?",ayush_vaya:"వయసు అనుభవం?",summary:"" },
+        bn: { chief_complaint:"আজ আপনার প্রধান সমস্যা?",hpi:"এটি কখন শুরু হয়েছে?",past_history:"আগে বড় রোগ?",drug_allergy:"ওষুধ বা অ্যালার্জি?",family_history:"পরিবারে রোগ?",personal_history:"পেশা?",review_of_systems:"অন্য অঙ্গে সমস্যা?",ayush_prakriti:"ত্বক কেমন?",ayush_vikriti:"এখন কেমন?",ayush_agni:"ক্ষুধা?",ayush_koshtha:"মলত্যাগ?",ayush_ahara_vihara:"কী খান?",ayush_nidana:"কী পরিবর্তন?",ayush_samprapti:"কখন বাড়ে?",ayush_sara:"ত্বক চুল নখ?",ayush_samhanana:"শরীরের গড়ন?",ayush_satmya:"সহনশীলতা?",ayush_pramana:"উচ্চতা ওজন?",ayush_sattva:"মানসিক অবস্থা?",ayush_ahara_shakti:"হজম?",ayush_vyayama_shakti:"ব্যায়াম?",ayush_vaya:"বয়স অনুযায়ী?",summary:"" },
+        mr: { chief_complaint:"आज मुख्य समस्या?",hpi:"हा त्रास कधीपासून?",past_history:"आधी मोठा आजार?",drug_allergy:"औषधे किंवा ॲलर्जी?",family_history:"कुटुंबात आजार?",personal_history:"व्यवसाय?",review_of_systems:"इतर अवयवांत त्रास?",ayush_prakriti:"त्वचा कशी?",ayush_vikriti:"आत्ता कसे?",ayush_agni:"भूक?",ayush_koshtha:"मलशुद्धी?",ayush_ahara_vihara:"काय खाता?",ayush_nidana:"काय बदलले?",ayush_samprapti:"केव्हा वाढतो?",ayush_sara:"त्वचा केस नखे?",ayush_samhanana:"शरीरयष्टी?",ayush_satmya:"सहन होते का?",ayush_pramana:"उंची वजन?",ayush_sattva:"मानसिक स्थिती?",ayush_ahara_shakti:"पचनशक्ती?",ayush_vyayama_shakti:"व्यायाम?",ayush_vaya:"वयानुसार?",summary:"" },
+        gu: { chief_complaint:"આજે મુખ્ય સમસ્યા?",hpi:"ક્યારે શરૂ?",past_history:"પહેલા મોટી બીમારી?",drug_allergy:"દવા કે એલર્જી?",family_history:"પરિવારમાં બીમારી?",personal_history:"વ્યવસાય?",review_of_systems:"અન્ય ભાગોમાં?",ayush_prakriti:"ત્વચા?",ayush_vikriti:"હવે?",ayush_agni:"ભૂખ?",ayush_koshtha:"ઝાડા?",ayush_ahara_vihara:"ખોરાક?",ayush_nidana:"શું બદલ્યું?",ayush_samprapti:"ક્યારે?",ayush_sara:"ત્વચા વાળ નખ?",ayush_samhanana:"બાંધો?",ayush_satmya:"સ્વીકૃતિ?",ayush_pramana:"ઊંચાઈ વજન?",ayush_sattva:"માનસ?",ayush_ahara_shakti:"પાચન?",ayush_vyayama_shakti:"ક્ષમતા?",ayush_vaya:"ઉંમર?",summary:"" },
+        kn: { chief_complaint:"ಇಂದು ಮುಖ್ಯ ಸಮಸ್ಯೆ?",hpi:"ಯಾವಾಗ ಪ್ರಾರಂಭ?",past_history:"ಮೊದಲು ಕಾಯಿಲೆ?",drug_allergy:"ಔಷಧ ಅಲರ್ಜಿ?",family_history:"ಕುಟುಂಬ ಇತಿಹಾಸ?",personal_history:"ವೃತ್ತಿ?",review_of_systems:"ಇತರ ಭಾಗ?",ayush_prakriti:"ಚರ್ಮ?",ayush_vikriti:"ಈಗ?",ayush_agni:"ಹಸಿವು?",ayush_koshtha:"ಮಲ?",ayush_ahara_vihara:"ಆಹಾರ?",ayush_nidana:"ಏನು ಬದಲು?",ayush_samprapti:"ಯಾವಾಗ?",ayush_sara:"ಚರ್ಮ ಕೂದಲು?",ayush_samhanana:"ದೇಹ?",ayush_satmya:"ಸಹಿಷ್ಣು?",ayush_pramana:"ಎತ್ತರ?",ayush_sattva:"ಮಾನಸಿಕ?",ayush_ahara_shakti:"ಜೀರ್ಣ?",ayush_vyayama_shakti:"ವ್ಯಾಯಾಮ?",ayush_vaya:"ವಯಸ್ಸು?",summary:"" },
+        ml: { chief_complaint:"ഇന്ന് പ്രധാന പ്രശ്നം?",hpi:"എപ്പോൾ തുടങ്ങി?",past_history:"മുൻ രോഗം?",drug_allergy:"മരുന്ന് ആലർജി?",family_history:"കുടുംബ ചരിത്രം?",personal_history:"തൊഴിൽ?",review_of_systems:"ഇതര ഭാഗം?",ayush_prakriti:"ചർമം?",ayush_vikriti:"ഇപ്പോൾ?",ayush_agni:"വിശപ്പ്?",ayush_koshtha:"മലം?",ayush_ahara_vihara:"ഭക്ഷണം?",ayush_nidana:"മാറ്റം?",ayush_samprapti:"എപ്പോൾ?",ayush_sara:"ചർമം മുടി?",ayush_samhanana:"ഘടന?",ayush_satmya:"സഹിഷ്ണുത?",ayush_pramana:"ഉയരം?",ayush_sattva:"മനോ?",ayush_ahara_shakti:"ദഹനം?",ayush_vyayama_shakti:"വ്യായാമം?",ayush_vaya:"പ്രായം?",summary:"" },
+        pa: { chief_complaint:"ਅੱਜ ਮੁੱਖ ਸਮੱਸਿਆ?",hpi:"ਕਦੋਂ ਸ਼ੁਰੂ?",past_history:"ਪਹਿਲਾਂ ਬਿਮਾਰੀ?",drug_allergy:"ਦਵਾਈ ਐਲਰਜੀ?",family_history:"ਪਰਿਵਾਰ?",personal_history:"ਕੰਮ?",review_of_systems:"ਹੋਰ ਅੰਗ?",ayush_prakriti:"ਚਮੜੀ?",ayush_vikriti:"ਹੁਣ?",ayush_agni:"ਭੁੱਖ?",ayush_koshtha:"ਪੇਟ?",ayush_ahara_vihara:"ਖਾਣਾ?",ayush_nidana:"ਕੀ ਬਦਲਿਆ?",ayush_samprapti:"ਕਦੋਂ?",ayush_sara:"ਚਮੜੀ ਵਾਲ?",ayush_samhanana:"ਢਾਂਚਾ?",ayush_satmya:"ਸਹਿਣਸ਼ੀਲਤਾ?",ayush_pramana:"ਕੱਦ?",ayush_sattva:"ਮਾਨਸਿਕ?",ayush_ahara_shakti:"ਪਾਚਨ?",ayush_vyayama_shakti:"ਕਸਰਤ?",ayush_vaya:"ਉਮਰ?",summary:"" },
+        ur: { chief_complaint:"آج اہم مسئلہ؟",hpi:"کب سے؟",past_history:"پہلے بیماری؟",drug_allergy:"دوائی الرجی؟",family_history:"خاندان؟",personal_history:"کام؟",review_of_systems:"اعضاء؟",ayush_prakriti:"جلد؟",ayush_vikriti:"ابھی؟",ayush_agni:"بھوک؟",ayush_koshtha:"پیٹ؟",ayush_ahara_vihara:"کھانا؟",ayush_nidana:"کیا بدلا؟",ayush_samprapti:"کب؟",ayush_sara:"جلد بال؟",ayush_samhanana:"ساخت؟",ayush_satmya:"برداشت؟",ayush_pramana:"قد؟",ayush_sattva:"ذہن؟",ayush_ahara_shakti:"ہضم؟",ayush_vyayama_shakti:"ورزش؟",ayush_vaya:"عمر؟",summary:"" },
+      };
+      const fb = INSTANT[lang] ?? INSTANT["hi"];
+      const instantQ = fb[forStage] ?? fb["chief_complaint"] ?? "";
+
+      // Show immediately — no wait for user
+      setStage(forStage);
+      setCurrentQuestion(instantQ);
       setAiLoading(true);
+
+      // Then silently upgrade with AI-tailored question
       try {
         const res = await resilientFetch("/api/history/chat", {
           method: "POST",
@@ -627,271 +649,16 @@ export default function HistoryPage() {
         if (data.isComplete && data.structuredSummary) {
           setSummary(data.structuredSummary);
           setIsComplete(true);
-        } else {
-          setStage(forStage); // sync breadcrumb to the question being ASKED, not the next stage
+        } else if (data.question) {
           setCurrentQuestion(data.question);
         }
       } catch {
-        // Offline fallback — multilingual static questions per stage
-        const OFFLINE_FALLBACKS: Record<string, Record<Stage, string>> = {
-          hi: {
-            chief_complaint: "आज आपको मुख्य रूप से क्या तकलीफ है?",
-            hpi: "यह तकलीफ कब से है, कैसी है?",
-            past_history: "क्या पहले कोई बड़ी बीमारी हुई है?",
-            drug_allergy: "क्या आप कोई दवाई ले रहे हैं?",
-            family_history: "परिवार में किसी को बड़ी बीमारी है?",
-            personal_history: "आप क्या काम करते हैं? धूम्रपान/शराब?",
-            review_of_systems: "किसी और अंग में तकलीफ है?",
-            ayush_prakriti: "आपकी त्वचा कैसी है?",
-            ayush_vikriti: "अभी कैसा महसूस कर रहे हैं?",
-            ayush_agni: "भूख कैसी है?",
-            ayush_koshtha: "पेट साफ कैसे होता है?",
-            ayush_ahara_vihara: "आप क्या खाते हैं?",
-            ayush_nidana: "तकलीफ से पहले क्या बदला?",
-            ayush_samprapti: "तकलीफ कब बढ़ती है?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-          en: {
-            chief_complaint: "What is your main problem today?",
-            hpi: "When did it start, how does it feel?",
-            past_history: "Any past major illness or surgery?",
-            drug_allergy: "Any medicines or allergies?",
-            family_history: "Family history of major diseases?",
-            personal_history: "Occupation? Smoke or drink?",
-            review_of_systems: "Any other body part issues?",
-            ayush_prakriti: "How is your skin usually?",
-            ayush_vikriti: "How do you feel now?",
-            ayush_agni: "How is your appetite?",
-            ayush_koshtha: "How is your bowel movement?",
-            ayush_ahara_vihara: "What do you usually eat?",
-            ayush_nidana: "What changed before this problem?",
-            ayush_samprapti: "When does it worsen?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-          ta: {
-            chief_complaint: "இன்று உங்கள் முக்கிய பிரச்சினை என்ன?",
-            hpi: "இது எப்போது தொடங்கியது?",
-            past_history: "முன்பு ஏதாவது பெரிய நோய் வந்ததுண்டா?",
-            drug_allergy: "மருந்து அல்லது ஒவ்வாமை உள்ளதா?",
-            family_history: "குடும்பத்தில் நோய் வரலாறு?",
-            personal_history: "உங்கள் தொழில் என்ன?",
-            review_of_systems: "வேறு உறுப்புகளில் பிரச்சனை?",
-            ayush_prakriti: "உங்கள் தோல் எப்படி இருக்கும்?",
-            ayush_vikriti: "இப்போது எப்படி உணர்கிறீர்கள்?",
-            ayush_agni: "பசி எப்படி உள்ளது?",
-            ayush_koshtha: "மலம் எப்படி?",
-            ayush_ahara_vihara: "என்ன சாப்பிடுவீர்கள்?",
-            ayush_nidana: "என்ன மாற்றம் ஏற்பட்டது?",
-            ayush_samprapti: "எப்போது அதிகரிக்கிறது?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-          te: {
-            chief_complaint: "ఈరోజు మీ ప్రధాన సమస్య ఏమిటి?",
-            hpi: "ఇది ఎప్పుడు మొదలైంది?",
-            past_history: "గతంలో ఏదైనా పెద్ద వ్యాధి వచ్చిందా?",
-            drug_allergy: "మందులు లేదా అలర్జీ ఉందా?",
-            family_history: "కుటుంబంలో వ్యాధుల చరిత్ర?",
-            personal_history: "మీ వృత్తి ఏమిటి?",
-            review_of_systems: "ఇతర భాగాల్లో సమస్య?",
-            ayush_prakriti: "మీ చర్మం ఎలా ఉంటుంది?",
-            ayush_vikriti: "ఇప్పుడు ఎలా అనిపిస్తోంది?",
-            ayush_agni: "ఆకలి ఎలా ఉంది?",
-            ayush_koshtha: "మలవిసర్జన ఎలా ఉంది?",
-            ayush_ahara_vihara: "ఏమి తింటారు?",
-            ayush_nidana: "ఏమి మారింది?",
-            ayush_samprapti: "ఎప్పుడు పెరుగుతుంది?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-          bn: {
-            chief_complaint: "আজ আপনার প্রধান সমস্যা কী?",
-            hpi: "এটি কখন শুরু হয়েছে?",
-            past_history: "আগে কোনো বড় রোগ হয়েছিল?",
-            drug_allergy: "ওষুধ বা অ্যালার্জি?",
-            family_history: "পরিবারে রোগের ইতিহাস?",
-            personal_history: "আপনার পেশা কী?",
-            review_of_systems: "অন্য অঙ্গে সমস্যা?",
-            ayush_prakriti: "আপনার ত্বক কেমন?",
-            ayush_vikriti: "এখন কেমন লাগছে?",
-            ayush_agni: "ক্ষুধা কেমন?",
-            ayush_koshtha: "মলত্যাগ কেমন?",
-            ayush_ahara_vihara: "কী খান সাধারণত?",
-            ayush_nidana: "কী পরিবর্তন হয়েছিল?",
-            ayush_samprapti: "কখন বাড়ে?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-          mr: {
-            chief_complaint: "आज तुमची मुख्य समस्या काय आहे?",
-            hpi: "हा त्रास कधीपासून आहे?",
-            past_history: "आधी काही मोठा आजार झाला होता का?",
-            drug_allergy: "औषधे किंवा ॲलर्जी?",
-            family_history: "कुटुंबात आजाराचा इतिहास?",
-            personal_history: "तुमचा व्यवसाय काय?",
-            review_of_systems: "इतर अवयवांत त्रास?",
-            ayush_prakriti: "तुमची त्वचा कशी असते?",
-            ayush_vikriti: "आत्ता कसे वाटते?",
-            ayush_agni: "भूक कशी आहे?",
-            ayush_koshtha: "मलशुद्धी कशी होते?",
-            ayush_ahara_vihara: "काय खाता सहसा?",
-            ayush_nidana: "काय बदलले?",
-            ayush_samprapti: "केव्हा वाढतो त्रास?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-          gu: {
-            chief_complaint: "આજે તમારી મુખ્ય સમસ્યા શું છે?",
-            hpi: "આ ક્યારે શરૂ થઈ?",
-            past_history: "પહેલા કોઈ મોટી બીમારી?",
-            drug_allergy: "દવા કે એલર્જી?",
-            family_history: "પરિવારમાં બીમારીઓ?",
-            personal_history: "તમારો વ્યવસાય?",
-            review_of_systems: "અન્ય ભાગોમાં તકલીફ?",
-            ayush_prakriti: "ત્વચા કેવી?",
-            ayush_vikriti: "હવે કેવું?",
-            ayush_agni: "ભૂખ કેવી?",
-            ayush_koshtha: "ઝાડા-સ્થિતિ?",
-            ayush_ahara_vihara: "ખોરાક?",
-            ayush_nidana: "પહેલા શું બદલ્યું?",
-            ayush_samprapti: "ક્યારે વધે?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-          kn: {
-            chief_complaint: "ಇಂದು ನಿಮ್ಮ ಮುಖ್ಯ ಸಮಸ್ಯೆ ಏನು?",
-            hpi: "ಇದು ಯಾವಾಗ ಪ್ರಾರಂಭವಾಯಿತು?",
-            past_history: "ಮೊದಲು ದೊಡ್ಡ ಕಾಯಿಲೆ ಬಂದಿತ್ತೇ?",
-            drug_allergy: "ಔಷಧ ಅಥವಾ ಅಲರ್ಜಿ?",
-            family_history: "ಕುಟುಂಬದ ಕಾಯಿಲೆ ಇತಿಹಾಸ?",
-            personal_history: "ನಿಮ್ಮ ವೃತ್ತಿ ಏನು?",
-            review_of_systems: "ಇತರ ಭಾಗಗಳಲ್ಲಿ ಸಮಸ್ಯೆ?",
-            ayush_prakriti: "ಚರ್ಮ ಹೇಗಿದೆ?",
-            ayush_vikriti: "ಈಗ ಹೇಗನಿಸಿದೆ?",
-            ayush_agni: "ಹಸಿವು ಹೇಗಿದೆ?",
-            ayush_koshtha: "ಮಲ ವಿಸರ್ಜನೆ?",
-            ayush_ahara_vihara: "ಆಹಾರ?",
-            ayush_nidana: "ಏನು ಬದಲಾಯಿತು?",
-            ayush_samprapti: "ಯಾವಾಗ ಹೆಚ್ಚಾಗುತ್ತದೆ?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-          ml: {
-            chief_complaint: "ഇന്ന് നിങ്ങളുടെ പ്രധാന പ്രശ്നം എന്താണ്?",
-            hpi: "ഇത് എപ്പോൾ തുടങ്ങി?",
-            past_history: "മുൻ വലിയ രോഗം ഉണ്ടായിരുന്നോ?",
-            drug_allergy: "മരുന്ന് അല്ലെങ്കിൽ ആലർജി?",
-            family_history: "കുടുംബ ചരിത്രം?",
-            personal_history: "തൊഴിൽ?",
-            review_of_systems: "ഇതര ഭാഗങ്ങളിൽ പ്രശ്നം?",
-            ayush_prakriti: "ചർമം?",
-            ayush_vikriti: "ഇപ്പോൾ?",
-            ayush_agni: "വിശപ്പ്?",
-            ayush_koshtha: "മലവിസർജ്ജനം?",
-            ayush_ahara_vihara: "ഭക്ഷണം?",
-            ayush_nidana: "മാറ്റം?",
-            ayush_samprapti: "എപ്പോൾ?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-          pa: {
-            chief_complaint: "ਅੱਜ ਤੁਹਾਡੀ ਮੁੱਖ ਸਮੱਸਿਆ ਕੀ ਹੈ?",
-            hpi: "ਇਹ ਕਦੋਂ ਸ਼ੁਰੂ ਹੋਇਆ?",
-            past_history: "ਪਹਿਲਾਂ ਕੋਈ ਵੱਡੀ ਬਿਮਾਰੀ?",
-            drug_allergy: "ਦਵਾਈ ਜਾਂ ਐਲਰਜੀ?",
-            family_history: "ਪਰਿਵਾਰ ਵਿੱਚ ਬਿਮਾਰੀਆਂ?",
-            personal_history: "ਕੰਮ ਕੀ ਕਰਦੇ ਹੋ?",
-            review_of_systems: "ਹੋਰ ਅੰਗਾਂ ਵਿੱਚ ਤਕਲੀਫ਼?",
-            ayush_prakriti: "ਚਮੜੀ ਕਿਹੋ ਜਿਹੀ?",
-            ayush_vikriti: "ਹੁਣ ਕਿਵੇਂ?",
-            ayush_agni: "ਭੁੱਖ?",
-            ayush_koshtha: "ਪੇਟ ਸਾਫ਼?",
-            ayush_ahara_vihara: "ਖਾਣਾ?",
-            ayush_nidana: "ਕੀ ਬਦਲਿਆ?",
-            ayush_samprapti: "ਕਦੋਂ ਵਧਦਾ?",
-            ayush_sara: "Skin/hair/nail quality?",
-            ayush_samhanana: "Body build?",
-            ayush_satmya: "Food/climate tolerance?",
-            ayush_pramana: "Body proportion?",
-            ayush_sattva: "Mental state?",
-            ayush_ahara_shakti: "Digestive capacity?",
-            ayush_vyayama_shakti: "Exercise tolerance?",
-            ayush_vaya: "Age-related feeling?",
-            summary: "",
-          },
-        };
-        const langFallbacks = OFFLINE_FALLBACKS[lang] ?? OFFLINE_FALLBACKS["hi"];
-        setCurrentQuestion(langFallbacks[forStage]);
+        // Already showing instant fallback — nothing more to do
       } finally {
         setAiLoading(false);
       }
     },
-    [lang]
+    [lang, interviewMode]
   );
 
   // ── Submit patient answer ────────────────────────────────────
